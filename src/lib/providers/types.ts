@@ -1,0 +1,117 @@
+import type { MatchStatus, ProviderName } from "@prisma/client";
+
+export type ProviderTeam = {
+  provider: ProviderName;
+  providerId: string;
+  name: string;
+  country: string;
+  fifaCode?: string;
+  badgeUrl?: string;
+};
+
+export type ProviderMatch = {
+  provider: ProviderName;
+  providerId: string;
+  matchNumber?: number;
+  stage: string;
+  stageOrder?: number;
+  knockoutRound?: string;
+  groupName?: string;
+  kickoffAt: Date;
+  venue?: string;
+  city?: string;
+  status: MatchStatus;
+  homeTeam?: ProviderTeam;
+  awayTeam?: ProviderTeam;
+  homeScore?: number;
+  awayScore?: number;
+  extraTimeHome?: number;
+  extraTimeAway?: number;
+  penaltyHome?: number;
+  penaltyAway?: number;
+};
+
+export type ProviderPlayer = {
+  provider: ProviderName;
+  providerId: string;
+  name: string;
+  photoUrl?: string;
+  age?: number;
+  height?: string;
+  preferredFoot?: string;
+  position?: string;
+  club?: string;
+  nationality?: string;
+  shirtNumber?: number;
+  teamProviderId?: string;
+  appearances?: number;
+  minutes?: number;
+  goals?: number;
+  assists?: number;
+  yellowCards?: number;
+  redCards?: number;
+  raw?: unknown;
+};
+
+export type ProviderSquad = {
+  provider: ProviderName;
+  teamProviderId: string;
+  players: ProviderPlayer[];
+};
+
+export type ProviderLineup = {
+  matchProviderId: string;
+  teamProviderId: string;
+  playerProviderId?: string;
+  playerName?: string;
+  role?: string;
+  position?: string;
+  shirtNumber?: number;
+  raw?: unknown;
+};
+
+export type ProviderEvent = {
+  matchProviderId: string;
+  providerEventId?: string;
+  teamProviderId?: string;
+  playerProviderId?: string;
+  playerName?: string;
+  minute?: number;
+  extraMinute?: number;
+  type: string;
+  detail?: string;
+  comments?: string;
+  raw?: unknown;
+};
+
+export type ProviderMatchStatistic = {
+  matchProviderId: string;
+  teamProviderId: string;
+  type: string;
+  value?: string;
+  raw?: unknown;
+};
+
+export type ProviderTeamStatistic = {
+  teamProviderId: string;
+  played?: number;
+  won?: number;
+  drawn?: number;
+  lost?: number;
+  goalsFor?: number;
+  goalsAgainst?: number;
+  raw?: unknown;
+};
+
+export interface FootballProvider {
+  readonly name: ProviderName;
+  isConfigured(): boolean;
+  getWorldCupTeams(): Promise<ProviderTeam[]>;
+  getWorldCupMatches(): Promise<ProviderMatch[]>;
+  getWorldCupSquads?(): Promise<ProviderSquad[]>;
+  getWorldCupPlayers?(): Promise<ProviderPlayer[]>;
+  getWorldCupLineups?(): Promise<ProviderLineup[]>;
+  getWorldCupEvents?(): Promise<ProviderEvent[]>;
+  getWorldCupMatchStatistics?(): Promise<ProviderMatchStatistic[]>;
+  getWorldCupTeamStatistics?(): Promise<ProviderTeamStatistic[]>;
+}

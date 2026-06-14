@@ -1,0 +1,358 @@
+import { Prisma, ProviderName } from "@prisma/client";
+import { prisma } from "@/lib/db";
+import { ApiFootballProvider } from "@/lib/providers/api-football";
+import { TheSportsDbProvider } from "@/lib/providers/thesportsdb";
+import { logApp } from "@/lib/logger";
+import { sendSyncFailureAlert } from "@/lib/monitoring";
+import type { FootballProvider, ProviderEvent, ProviderLineup, ProviderMatchStatistic, ProviderPlayer, ProviderTeam, ProviderTeamStatistic } from "@/lib/providers/types";
+
+export type SyncResult = {
+  provider: ProviderName;
+  status: "skipped" | "success" | "failed";
+  message: string;
+  teamsSeen: number;
+  matchesSeen: number;
+};
+
+const TOURNAMENT_SLUG = "world-cup-2026";
+
+async function upsertTeam(team: ProviderTeam) {
+  const providerField = team.provider === ProviderName.API_FOOTBALL ? { apiFootballId: Number(team.providerId) } : { sportsDbId: team.providerId };
+  const existing = await findTeam(team.provider, team.providerId);
+  if (existing && existing.name !== team.name) {
+    await prisma.providerDataConflict.create({
+      data: { provider: team.provider, entityType: "Team", entityId: existing.id, field: "name", currentValue: existing.name, incomingValue: team.name }
+    });
+  }
+  return prisma.team.upsert({
+    where: team.provider === ProviderName.API_FOOTBALL ? { apiFootballId: Number(team.providerId) } : { sportsDbId: team.providerId },
+    update: {
+      name: team.name,
+      country: team.country,
+      fifaCode: team.fifaCode,
+      badgeUrl: team.badgeUrl,
+      ...providerField
+    },
+    create: {
+      name: team.name,
+      country: team.country,
+      fifaCode: team.fifaCode,
+      badgeUrl: team.badgeUrl,
+      ...providerField
+    }
+  });
+}
+
+async function recordMappingIssue(provider: ProviderName, issueType: string, message: string, data: Record<string, unknown>) {
+  await prisma.providerMappingIssue.create({
+    data: {
+      provider,
+      issueType,
+      providerId: data.providerId ? String(data.providerId) : undefined,
+      entityType: data.entityType ? String(data.entityType) : undefined,
+      entityId: data.entityId ? String(data.entityId) : undefined,
+      message,
+      raw: data as Prisma.InputJsonValue
+    }
+  });
+  await logApp("warn", "reconciliation", message, data as Prisma.InputJsonValue);
+}
+
+async function findTeam(provider: ProviderName, providerId?: string) {
+  if (!providerId) return null;
+  return provider === ProviderName.API_FOOTBALL
+    ? prisma.team.findUnique({ where: { apiFootballId: Number(providerId) } })
+    : prisma.team.findUnique({ where: { sportsDbId: providerId } });
+}
+
+async function findMatch(provider: ProviderName, providerId: string) {
+  return prisma.match.findUnique({ where: { sourceProvider_providerId: { sourceProvider: provider, providerId } } });
+}
+
+async function upsertPlayer(player: ProviderPlayer) {
+  const providerField = player.provider === ProviderName.API_FOOTBALL ? { apiFootballId: Number(player.providerId) } : { sportsDbId: player.providerId };
+  const existing = player.provider === ProviderName.API_FOOTBALL
+    ? await prisma.player.findUnique({ where: { apiFootballId: Number(player.providerId) } })
+    : await prisma.player.findUnique({ where: { sportsDbId: player.providerId } });
+  if (existing && existing.name !== player.name) {
+    await prisma.providerDataConflict.create({
+      data: { provider: player.provider, entityType: "Player", entityId: existing.id, field: "name", currentValue: existing.name, incomingValue: player.name }
+    });
+  }
+  return prisma.player.upsert({
+    where: player.provider === ProviderName.API_FOOTBALL ? { apiFootballId: Number(player.providerId) } : { sportsDbId: player.providerId },
+    update: {
+      name: player.name,
+      photoUrl: player.photoUrl,
+      age: player.age,
+      height: player.height,
+      preferredFoot: player.preferredFoot,
+      position: player.position,
+      club: player.club,
+      nationality: player.nationality,
+      ...providerField
+    },
+    create: {
+      name: player.name,
+      photoUrl: player.photoUrl,
+      age: player.age,
+      height: player.height,
+      preferredFoot: player.preferredFoot,
+      position: player.position,
+      club: player.club,
+      nationality: player.nationality,
+      ...providerField
+    }
+  });
+}
+
+async function ingestPlayerStatistics(tournamentId: string, player: ProviderPlayer) {
+  const dbPlayer = await upsertPlayer(player);
+  const team = await findTeam(player.provider, player.teamProviderId);
+  await prisma.playerStatistic.upsert({
+    where: { tournamentId_playerId: { tournamentId, playerId: dbPlayer.id } },
+    update: {
+      teamId: team?.id,
+      appearances: player.appearances,
+      minutes: player.minutes,
+      goals: player.goals,
+      assists: player.assists,
+      yellowCards: player.yellowCards,
+      redCards: player.redCards,
+      raw: player.raw as Prisma.InputJsonValue
+    },
+    create: {
+      tournamentId,
+      playerId: dbPlayer.id,
+      teamId: team?.id,
+      appearances: player.appearances,
+      minutes: player.minutes,
+      goals: player.goals,
+      assists: player.assists,
+      yellowCards: player.yellowCards,
+      redCards: player.redCards,
+      raw: player.raw as Prisma.InputJsonValue
+    }
+  });
+}
+
+async function ingestLineup(provider: ProviderName, lineup: ProviderLineup) {
+  const match = await findMatch(provider, lineup.matchProviderId);
+  const team = await findTeam(provider, lineup.teamProviderId);
+  if (!match || !team) {
+    await recordMappingIssue(provider, "invalid-lineup-mapping", "Lineup could not be mapped to a stored match and team.", { providerId: lineup.matchProviderId, teamProviderId: lineup.teamProviderId });
+    return;
+  }
+  const player = lineup.playerProviderId ? await upsertPlayer({ provider, providerId: lineup.playerProviderId, name: lineup.playerName ?? "Unknown player", position: lineup.position, shirtNumber: lineup.shirtNumber }) : null;
+  await prisma.matchLineup.create({
+    data: {
+      matchId: match.id,
+      teamId: team.id,
+      playerId: player?.id,
+      role: lineup.role,
+      position: lineup.position,
+      shirtNumber: lineup.shirtNumber,
+      raw: lineup.raw as Prisma.InputJsonValue
+    }
+  });
+}
+
+async function ingestEvent(provider: ProviderName, event: ProviderEvent) {
+  const match = await findMatch(provider, event.matchProviderId);
+  if (!match) {
+    await recordMappingIssue(provider, "invalid-event-mapping", "Event could not be mapped to a stored match.", { providerId: event.matchProviderId });
+    return;
+  }
+  const team = await findTeam(provider, event.teamProviderId);
+  const player = event.playerProviderId ? await upsertPlayer({ provider, providerId: event.playerProviderId, name: event.playerName ?? "Unknown player" }) : null;
+  await prisma.matchEvent.create({
+    data: {
+      matchId: match.id,
+      teamId: team?.id,
+      playerId: player?.id,
+      minute: event.minute,
+      extraMinute: event.extraMinute,
+      type: event.type,
+      detail: event.detail,
+      comments: event.comments,
+      providerEventId: event.providerEventId,
+      raw: event.raw as Prisma.InputJsonValue
+    }
+  });
+}
+
+async function ingestMatchStatistic(provider: ProviderName, statistic: ProviderMatchStatistic) {
+  const match = await findMatch(provider, statistic.matchProviderId);
+  const team = await findTeam(provider, statistic.teamProviderId);
+  if (!match || !team) {
+    await recordMappingIssue(provider, "invalid-statistic-mapping", "Match statistic could not be mapped to a stored match and team.", { providerId: statistic.matchProviderId, teamProviderId: statistic.teamProviderId });
+    return;
+  }
+  await prisma.matchStatistic.upsert({
+    where: { matchId_teamId_type: { matchId: match.id, teamId: team.id, type: statistic.type } },
+    update: { value: statistic.value, raw: statistic.raw as Prisma.InputJsonValue },
+    create: { matchId: match.id, teamId: team.id, type: statistic.type, value: statistic.value, raw: statistic.raw as Prisma.InputJsonValue }
+  });
+}
+
+async function ingestTeamStatistic(provider: ProviderName, tournamentId: string, statistic: ProviderTeamStatistic) {
+  const team = await findTeam(provider, statistic.teamProviderId);
+  if (!team) {
+    await recordMappingIssue(provider, "unmatched-team-statistic", "Team statistic could not be mapped to a stored team.", { providerId: statistic.teamProviderId });
+    return;
+  }
+  await prisma.teamStatistic.upsert({
+    where: { tournamentId_teamId: { tournamentId, teamId: team.id } },
+    update: { played: statistic.played, won: statistic.won, drawn: statistic.drawn, lost: statistic.lost, goalsFor: statistic.goalsFor, goalsAgainst: statistic.goalsAgainst, raw: statistic.raw as Prisma.InputJsonValue },
+    create: { tournamentId, teamId: team.id, played: statistic.played, won: statistic.won, drawn: statistic.drawn, lost: statistic.lost, goalsFor: statistic.goalsFor, goalsAgainst: statistic.goalsAgainst, raw: statistic.raw as Prisma.InputJsonValue }
+  });
+}
+
+export async function synchronizeProvider(provider: FootballProvider): Promise<SyncResult> {
+  if (!provider.isConfigured()) {
+    return { provider: provider.name, status: "skipped", message: "Provider is not configured.", teamsSeen: 0, matchesSeen: 0 };
+  }
+
+  const run = await prisma.syncRun.create({ data: { provider: provider.name, status: "running" } });
+
+  try {
+    const tournament = await prisma.tournament.upsert({
+      where: { slug: TOURNAMENT_SLUG },
+      update: { isSeedData: false },
+      create: {
+        slug: TOURNAMENT_SLUG,
+        name: "FIFA World Cup 2026",
+        season: 2026,
+        startsAt: new Date("2026-06-11T00:00:00Z"),
+        endsAt: new Date("2026-07-19T23:59:59Z"),
+        isSeedData: false
+      }
+    });
+
+    const teams = await provider.getWorldCupTeams();
+    for (const team of teams) {
+      const dbTeam = await upsertTeam(team);
+      await prisma.teamTournament.upsert({
+        where: { teamId_tournamentId: { teamId: dbTeam.id, tournamentId: tournament.id } },
+        update: {},
+        create: { teamId: dbTeam.id, tournamentId: tournament.id }
+      });
+    }
+
+    const matches = await provider.getWorldCupMatches();
+    for (const match of matches) {
+      const homeTeam = match.homeTeam ? await upsertTeam(match.homeTeam) : null;
+      const awayTeam = match.awayTeam ? await upsertTeam(match.awayTeam) : null;
+      await prisma.match.upsert({
+        where: { sourceProvider_providerId: { sourceProvider: match.provider, providerId: match.providerId } },
+        update: {
+          stage: match.stage,
+          matchNumber: match.matchNumber,
+          stageOrder: match.stageOrder ?? 0,
+          knockoutRound: match.knockoutRound,
+          groupName: match.groupName,
+          kickoffAt: match.kickoffAt,
+          venue: match.venue,
+          city: match.city,
+          status: match.status,
+          homeTeamId: homeTeam?.id,
+          awayTeamId: awayTeam?.id,
+          homeScore: match.homeScore,
+          awayScore: match.awayScore,
+          extraTimeHome: match.extraTimeHome,
+          extraTimeAway: match.extraTimeAway,
+          penaltyHome: match.penaltyHome,
+          penaltyAway: match.penaltyAway
+        },
+        create: {
+          tournamentId: tournament.id,
+          sourceProvider: match.provider,
+          providerId: match.providerId,
+          matchNumber: match.matchNumber,
+          stage: match.stage,
+          stageOrder: match.stageOrder ?? 0,
+          knockoutRound: match.knockoutRound,
+          groupName: match.groupName,
+          kickoffAt: match.kickoffAt,
+          venue: match.venue,
+          city: match.city,
+          status: match.status,
+          homeTeamId: homeTeam?.id,
+          awayTeamId: awayTeam?.id,
+          homeScore: match.homeScore,
+          awayScore: match.awayScore,
+          extraTimeHome: match.extraTimeHome,
+          extraTimeAway: match.extraTimeAway,
+          penaltyHome: match.penaltyHome,
+          penaltyAway: match.penaltyAway
+        }
+      });
+    }
+
+    if (provider.getWorldCupSquads) {
+      const squads = await provider.getWorldCupSquads();
+      for (const squad of squads) {
+        const team = await findTeam(provider.name, squad.teamProviderId);
+        if (!team) {
+          await recordMappingIssue(provider.name, "unmatched-team", "Squad team could not be matched.", { providerId: squad.teamProviderId, entityType: "Team" });
+          continue;
+        }
+        for (const player of squad.players) {
+          const dbPlayer = await upsertPlayer(player);
+          await prisma.squadMembership.upsert({
+            where: { tournamentId_teamId_playerId: { tournamentId: tournament.id, teamId: team.id, playerId: dbPlayer.id } },
+            update: { shirtNumber: player.shirtNumber, position: player.position },
+            create: { tournamentId: tournament.id, teamId: team.id, playerId: dbPlayer.id, shirtNumber: player.shirtNumber, position: player.position }
+          });
+        }
+      }
+    }
+
+    if (provider.getWorldCupPlayers) {
+      for (const player of await provider.getWorldCupPlayers()) {
+        await ingestPlayerStatistics(tournament.id, player);
+      }
+    }
+
+    if (provider.getWorldCupLineups) {
+      await prisma.matchLineup.deleteMany({ where: { match: { sourceProvider: provider.name } } });
+      for (const lineup of await provider.getWorldCupLineups()) await ingestLineup(provider.name, lineup);
+    }
+
+    if (provider.getWorldCupEvents) {
+      await prisma.matchEvent.deleteMany({ where: { match: { sourceProvider: provider.name } } });
+      for (const event of await provider.getWorldCupEvents()) await ingestEvent(provider.name, event);
+    }
+
+    if (provider.getWorldCupMatchStatistics) {
+      await prisma.matchStatistic.deleteMany({ where: { match: { sourceProvider: provider.name } } });
+      for (const statistic of await provider.getWorldCupMatchStatistics()) await ingestMatchStatistic(provider.name, statistic);
+    }
+
+    if (provider.getWorldCupTeamStatistics) {
+      for (const statistic of await provider.getWorldCupTeamStatistics()) await ingestTeamStatistic(provider.name, tournament.id, statistic);
+    }
+
+    await prisma.syncRun.update({
+      where: { id: run.id },
+      data: { status: "success", finishedAt: new Date(), teamsSeen: teams.length, matchesSeen: matches.length }
+    });
+
+    return { provider: provider.name, status: "success", message: "Synchronization completed.", teamsSeen: teams.length, matchesSeen: matches.length };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unknown synchronization error";
+    await prisma.syncRun.update({ where: { id: run.id }, data: { status: "failed", finishedAt: new Date(), message } });
+    await logApp("error", "sync", "Provider synchronization failed", { provider: provider.name, message });
+    await sendSyncFailureAlert({ provider: provider.name, message, syncRunId: run.id });
+    return { provider: provider.name, status: "failed", message, teamsSeen: 0, matchesSeen: 0 };
+  }
+}
+
+export async function synchronizeAllProviders() {
+  const providers: FootballProvider[] = [new ApiFootballProvider(), new TheSportsDbProvider()];
+  const results = [];
+  for (const provider of providers) {
+    results.push(await synchronizeProvider(provider));
+  }
+  return results;
+}

@@ -1,0 +1,405 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum MatchStatus {
+  SCHEDULED
+  LIVE
+  FINISHED
+  POSTPONED
+  CANCELLED
+}
+
+enum ProviderName {
+  API_FOOTBALL
+  THESPORTSDB
+}
+
+enum AdminRole {
+  OWNER
+  ADMIN
+  VIEWER
+}
+
+model Tournament {
+  id         String   @id @default(cuid())
+  slug       String   @unique
+  name       String
+  season     Int
+  startsAt   DateTime
+  endsAt     DateTime
+  isSeedData Boolean  @default(false)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  groups     Group[]
+  teams      TeamTournament[]
+  matches    Match[]
+  squadMembers SquadMembership[]
+  playerStatistics PlayerStatistic[]
+  teamStatistics TeamStatistic[]
+}
+
+model Team {
+  id            String           @id @default(cuid())
+  fifaCode      String?          @unique
+  name          String           @unique
+  country       String
+  badgeUrl      String?
+  apiFootballId Int?             @unique
+  sportsDbId    String?          @unique
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+  tournaments   TeamTournament[]
+  groupEntries  GroupTeam[]
+  homeMatches   Match[]          @relation("HomeTeam")
+  awayMatches   Match[]          @relation("AwayTeam")
+  squadMembers  SquadMembership[]
+  statistics    TeamStatistic[]
+  playerStatistics PlayerStatistic[]
+  lineups       MatchLineup[]
+  events        MatchEvent[]
+  matchStatistics MatchStatistic[]
+  fieldLocks    ManualFieldLock[]
+}
+
+model TeamTournament {
+  id           String     @id @default(cuid())
+  teamId       String
+  tournamentId String
+  team         Team       @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  tournament   Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+
+  @@unique([teamId, tournamentId])
+}
+
+model Group {
+  id           String      @id @default(cuid())
+  name         String
+  tournamentId String
+  tournament   Tournament  @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  teams        GroupTeam[]
+
+  @@unique([tournamentId, name])
+}
+
+model GroupTeam {
+  id      String @id @default(cuid())
+  groupId String
+  teamId  String
+  group   Group  @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  team    Team   @relation(fields: [teamId], references: [id], onDelete: Cascade)
+
+  @@unique([groupId, teamId])
+}
+
+model Match {
+  id             String      @id @default(cuid())
+  tournamentId   String
+  providerId     String?
+  matchNumber    Int?
+  stage          String
+  stageOrder     Int         @default(0)
+  knockoutRound  String?
+  groupName      String?
+  kickoffAt      DateTime
+  venue          String?
+  city           String?
+  status         MatchStatus @default(SCHEDULED)
+  homeTeamId     String?
+  awayTeamId     String?
+  homeSeed       String?
+  awaySeed       String?
+  homeScore      Int?
+  awayScore      Int?
+  extraTimeHome  Int?
+  extraTimeAway  Int?
+  penaltyHome    Int?
+  penaltyAway    Int?
+  winnerToMatchId String?
+  winnerToSlot    String?
+  loserToMatchId  String?
+  loserToSlot     String?
+  sourceProvider ProviderName?
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+  tournament     Tournament  @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  homeTeam       Team?       @relation("HomeTeam", fields: [homeTeamId], references: [id])
+  awayTeam       Team?       @relation("AwayTeam", fields: [awayTeamId], references: [id])
+  winnerToMatch  Match?      @relation("WinnerProgression", fields: [winnerToMatchId], references: [id])
+  winnerFrom     Match[]     @relation("WinnerProgression")
+  loserToMatch   Match?      @relation("LoserProgression", fields: [loserToMatchId], references: [id])
+  loserFrom      Match[]     @relation("LoserProgression")
+  lineups        MatchLineup[]
+  events         MatchEvent[]
+  statistics     MatchStatistic[]
+  fieldLocks     ManualFieldLock[]
+
+  @@unique([sourceProvider, providerId])
+  @@unique([tournamentId, matchNumber])
+  @@index([tournamentId, kickoffAt])
+  @@index([winnerToMatchId])
+  @@index([loserToMatchId])
+}
+
+model Player {
+  id            String             @id @default(cuid())
+  apiFootballId Int?               @unique
+  sportsDbId    String?            @unique
+  name          String
+  photoUrl      String?
+  birthDate     DateTime?
+  age           Int?
+  height        String?
+  preferredFoot String?
+  position      String?
+  club          String?
+  nationality   String?
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
+  squads        SquadMembership[]
+  statistics    PlayerStatistic[]
+  lineups       MatchLineup[]
+  events        MatchEvent[]
+  fieldLocks    ManualFieldLock[]
+}
+
+model SquadMembership {
+  id            String     @id @default(cuid())
+  tournamentId  String
+  teamId        String
+  playerId      String
+  shirtNumber   Int?
+  position      String?
+  createdAt     DateTime   @default(now())
+  tournament    Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  team          Team       @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  player        Player     @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@unique([tournamentId, teamId, playerId])
+  @@index([teamId])
+  @@index([playerId])
+}
+
+model PlayerStatistic {
+  id           String     @id @default(cuid())
+  tournamentId String
+  playerId     String
+  teamId       String?
+  appearances  Int?
+  minutes      Int?
+  goals        Int?
+  assists      Int?
+  yellowCards  Int?
+  redCards     Int?
+  raw          Json?
+  updatedAt    DateTime   @updatedAt
+  tournament   Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  player       Player     @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  team         Team?      @relation(fields: [teamId], references: [id])
+
+  @@unique([tournamentId, playerId])
+}
+
+model TeamStatistic {
+  id           String     @id @default(cuid())
+  tournamentId String
+  teamId       String
+  played       Int?
+  won          Int?
+  drawn        Int?
+  lost         Int?
+  goalsFor     Int?
+  goalsAgainst Int?
+  raw          Json?
+  updatedAt    DateTime   @updatedAt
+  tournament   Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  team         Team       @relation(fields: [teamId], references: [id], onDelete: Cascade)
+
+  @@unique([tournamentId, teamId])
+}
+
+model MatchLineup {
+  id        String   @id @default(cuid())
+  matchId   String
+  teamId    String
+  playerId  String?
+  role      String?
+  position  String?
+  shirtNumber Int?
+  raw       Json?
+  match     Match    @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  team      Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  player    Player?  @relation(fields: [playerId], references: [id])
+
+  @@index([matchId])
+}
+
+model MatchEvent {
+  id             String   @id @default(cuid())
+  matchId        String
+  teamId         String?
+  playerId       String?
+  minute         Int?
+  extraMinute    Int?
+  type           String
+  detail         String?
+  comments       String?
+  providerEventId String?
+  raw            Json?
+  match          Match    @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  team           Team?    @relation(fields: [teamId], references: [id])
+  player         Player?  @relation(fields: [playerId], references: [id])
+
+  @@index([matchId])
+}
+
+model MatchStatistic {
+  id       String @id @default(cuid())
+  matchId  String
+  teamId   String
+  type     String
+  value    String?
+  raw      Json?
+  match    Match  @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  team     Team   @relation(fields: [teamId], references: [id], onDelete: Cascade)
+
+  @@unique([matchId, teamId, type])
+}
+
+model AdminUser {
+  id           String       @id @default(cuid())
+  username     String       @unique
+  passwordHash String
+  role         AdminRole    @default(ADMIN)
+  isActive     Boolean      @default(true)
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+  auditEvents  AuditEvent[]
+}
+
+model AuditEvent {
+  id          String     @id @default(cuid())
+  adminUserId String?
+  action      String
+  entityType  String?
+  entityId    String?
+  metadata    Json?
+  createdAt   DateTime   @default(now())
+  adminUser   AdminUser? @relation(fields: [adminUserId], references: [id])
+
+  @@index([createdAt])
+  @@index([entityType, entityId])
+}
+
+model ProviderMappingIssue {
+  id          String       @id @default(cuid())
+  provider    ProviderName
+  issueType   String
+  providerId  String?
+  entityType  String?
+  entityId    String?
+  severity    String       @default("warn")
+  message     String
+  raw         Json?
+  resolvedAt  DateTime?
+  createdAt   DateTime     @default(now())
+
+  @@index([provider, issueType])
+  @@index([resolvedAt])
+}
+
+model ProviderDataConflict {
+  id            String       @id @default(cuid())
+  provider      ProviderName
+  entityType    String
+  entityId      String?
+  field         String
+  currentValue  String?
+  incomingValue String?
+  resolvedAt    DateTime?
+  createdAt     DateTime     @default(now())
+
+  @@index([entityType, entityId])
+  @@index([resolvedAt])
+}
+
+model ManualFieldLock {
+  id         String   @id @default(cuid())
+  entityType String
+  entityId   String
+  field      String
+  reason     String?
+  teamId     String?
+  playerId   String?
+  matchId    String?
+  createdAt  DateTime @default(now())
+  team       Team?    @relation(fields: [teamId], references: [id])
+  player     Player?  @relation(fields: [playerId], references: [id])
+  match      Match?   @relation(fields: [matchId], references: [id])
+
+  @@unique([entityType, entityId, field])
+}
+
+model ExternalApiCache {
+  id          String       @id @default(cuid())
+  provider    ProviderName
+  cacheKey    String
+  statusCode  Int
+  response    Json
+  expiresAt   DateTime
+  createdAt   DateTime     @default(now())
+
+  @@unique([provider, cacheKey])
+  @@index([expiresAt])
+}
+
+model ApiQuotaUsage {
+  id        String       @id @default(cuid())
+  provider  ProviderName
+  day       DateTime
+  requests  Int          @default(0)
+  limit     Int?
+  updatedAt DateTime     @updatedAt
+
+  @@unique([provider, day])
+}
+
+model AdminRateLimit {
+  id         String   @id @default(cuid())
+  identifier String
+  action     String
+  count      Int      @default(0)
+  resetAt    DateTime
+  updatedAt  DateTime @updatedAt
+
+  @@unique([identifier, action])
+  @@index([resetAt])
+}
+
+model AppLog {
+  id        String   @id @default(cuid())
+  level     String
+  scope     String
+  message   String
+  metadata  Json?
+  createdAt DateTime @default(now())
+
+  @@index([level, createdAt])
+  @@index([scope, createdAt])
+}
+
+model SyncRun {
+  id          String       @id @default(cuid())
+  provider    ProviderName
+  status      String
+  startedAt   DateTime     @default(now())
+  finishedAt  DateTime?
+  message     String?
+  matchesSeen Int          @default(0)
+  teamsSeen   Int          @default(0)
+}

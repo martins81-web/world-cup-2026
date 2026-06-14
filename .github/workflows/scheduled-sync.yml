@@ -1,0 +1,17 @@
+name: Scheduled sync
+
+on:
+  schedule:
+    - cron: "0 */6 * * *"
+  workflow_dispatch:
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger sync
+        run: |
+          curl -fsS -X POST "$SYNC_URL/api/admin/sync" -H "x-admin-sync-token: $ADMIN_SYNC_TOKEN"
+        env:
+          SYNC_URL: ${{ secrets.SYNC_URL }}
+          ADMIN_SYNC_TOKEN: ${{ secrets.ADMIN_SYNC_TOKEN }}

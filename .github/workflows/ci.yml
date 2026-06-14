@@ -1,0 +1,76 @@
+name: CI
+
+on:
+  workflow_dispatch:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: worldcup2026_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d worldcup2026_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/worldcup2026_test?schema=public
+      TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/worldcup2026_test?schema=public
+      ADMIN_SYNC_TOKEN: ci-admin-sync-token-123
+      ADMIN_SESSION_SECRET: ci-admin-session-secret-123456789
+      ADMIN_USERNAME: admin
+      NEXT_PUBLIC_API_SPORTS_WIDGET_KEY: ""
+      NEXT_PUBLIC_API_SPORTS_WIDGET_HOST: https://widgets.api-sports.io
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run prisma:generate
+      - run: npm run prisma:deploy
+      - run: npm run prisma:seed
+      - run: npm test
+      - run: npm run test:integration
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:e2e
+      - name: Upload Playwright report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: playwright-report/
+          if-no-files-found: ignore
+      - name: Upload Playwright test results
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-test-results
+          path: test-results/
+          if-no-files-found: ignore
+      - run: npm run typecheck
+      - run: npm run build
+      - run: npx prisma migrate diff --from-migrations prisma/migrations --to-schema-datamodel prisma/schema.prisma --exit-code
+      - run: npm audit --audit-level=high
+      - run: |
+          npm run start &
+          for i in {1..30}; do
+            if curl -fsS http://127.0.0.1:3000/api/health > /dev/null; then
+              break
+            fi
+            sleep 2
+          done
+          npm run smoke-test
+        env:
+          SMOKE_BASE_URL: http://127.0.0.1:3000
