@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { createAdminSession, hashAdminPassword, verifyAdminPassword, verifyAdminSession } from "@/lib/admin-auth";
 import { hasAdminAccess } from "@/lib/admin-request";
+import { env } from "@/lib/env";
 
 describe("admin authentication", () => {
   it("verifies password hashes", () => {
@@ -19,7 +20,7 @@ describe("admin authentication", () => {
 
   it("accepts the server-side sync token", () => {
     const request = new Request("https://example.test/api/admin/sync", {
-      headers: { "x-admin-sync-token": "test-admin-sync-token-123" }
+      headers: { "x-admin-sync-token": env.ADMIN_SYNC_TOKEN }
     });
     expect(hasAdminAccess(request)).toBe(true);
   });
