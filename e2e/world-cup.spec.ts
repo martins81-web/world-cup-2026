@@ -1,11 +1,17 @@
 import { expect, test, type Page } from "@playwright/test";
 
 function adminCredentials() {
-  const adminUsername = process.env.ADMIN_EMAIL ?? "admin";
-  const adminPassword = process.env.ADMIN_PASSWORD ?? process.env.ADMIN_SYNC_TOKEN;
+  const adminUsername = process.env.ADMIN_USERNAME ?? "admin";
+  const adminPassword =
+    process.env.ADMIN_PASSWORD ??
+    process.env.ADMIN_SYNC_TOKEN;
+
   if (!adminPassword) {
-    throw new Error("Admin password is not configured. Set ADMIN_PASSWORD or ADMIN_SYNC_TOKEN.");
+    throw new Error(
+      "Admin password is not configured. Set ADMIN_PASSWORD or ADMIN_SYNC_TOKEN."
+    );
   }
+
   return { adminUsername, adminPassword };
 }
 
@@ -13,10 +19,18 @@ async function signInFromCurrentAdminPage(page: Page) {
   const { adminUsername, adminPassword } = adminCredentials();
   await page.getByLabel("Username").fill(adminUsername);
   await page.getByLabel("Password").fill(adminPassword);
-  await Promise.all([
-    page.waitForURL(/\/admin\/sync/),
-    page.getByRole("button", { name: "Sign in" }).click()
-  ]);
+  const responsePromise = page.waitForResponse(
+    (response) =>
+      response.url().includes("/api/admin/login") &&
+      response.request().method() === "POST"
+  );
+
+  await page.getByRole("button", { name: "Sign in" }).click();
+
+  const response = await responsePromise;
+
+  expect(response.status()).toBe(200);
+  await expect(page).toHaveURL(/\/admin\/sync/);
   await expect(page.getByText("Unauthorized")).toHaveCount(0);
 }
 
@@ -82,8 +96,20 @@ test("provider conflict resolution page", async ({ page }) => {
 test("mobile navigation and focus", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/");
+  const matchesLink = page.getByRole("link", {
+    name: "matches",
+    exact: true
+  });
+
+  const groupsLink = page.getByRole("link", {
+    name: "groups",
+    exact: true
+  });
+
+  await matchesLink.focus();
+  await expect(matchesLink).toBeFocused();
+  await expect(matchesLink).toBeVisible();
+
   await page.keyboard.press("Tab");
-  const firstFocusable = page.getByRole("link", { name: "matches" });
-  await expect(firstFocusable).toBeFocused();
-  await expect(firstFocusable).toBeVisible();
+  await expect(groupsLink).toBeFocused();
 });

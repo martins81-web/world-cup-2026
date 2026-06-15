@@ -18,6 +18,8 @@ export default defineConfig({
     env: {
       DATABASE_URL: process.env.DATABASE_URL ?? "postgresql://postgres:postgres@localhost:5432/worldcup2026_test?schema=public",
       ADMIN_SYNC_TOKEN: process.env.ADMIN_SYNC_TOKEN ?? "test-admin-sync-token-123",
+      ADMIN_USERNAME: process.env.ADMIN_USERNAME ?? "admin",
+      ADMIN_PASSWORD_HASH: process.env.ADMIN_PASSWORD_HASH ?? "",
       ADMIN_SESSION_SECRET: process.env.ADMIN_SESSION_SECRET ?? "test-admin-session-secret-123456789",
       NEXT_PUBLIC_API_SPORTS_WIDGET_KEY: process.env.NEXT_PUBLIC_API_SPORTS_WIDGET_KEY ?? "",
       NEXT_PUBLIC_API_SPORTS_WIDGET_HOST: process.env.NEXT_PUBLIC_API_SPORTS_WIDGET_HOST ?? "https://widgets.api-sports.io"
