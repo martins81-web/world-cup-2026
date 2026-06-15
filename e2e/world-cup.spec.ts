@@ -40,12 +40,8 @@ async function signInFromCurrentAdminPage(page: Page) {
     name: "Sign in",
     exact: true
   })).toHaveCount(0);
-  await expect(page.getByRole("heading", {
-    name: "Admin",
-    exact: true
-  })).toBeVisible();
   await expect(page.getByRole("link", {
-    name: "Synchronization",
+    name: "Mapping errors",
     exact: true
   })).toBeVisible();
 }
@@ -106,13 +102,23 @@ test("admin login, unauthorized access and manual synchronization", async ({ pag
   await signInFromCurrentAdminPage(page);
   await page.goto("/admin/sync");
   await expect(page).toHaveURL(/\/admin\/sync$/);
+  await expect(page.getByRole("heading", {
+    name: "Admin Synchronization",
+    exact: true
+  })).toBeVisible();
   await expect(page.getByRole("button", { name: /Run sync/i })).toBeVisible();
 });
 
-test("provider conflict resolution page", async ({ page }) => {
+test("provider conflict resolution page", async ({ page }, testInfo) => {
+  test.skip(
+    testInfo.project.name === "mobile",
+    "Admin conflict resolution is covered by Chromium."
+  );
+
   await page.goto("/admin");
   await signInFromCurrentAdminPage(page);
   await page.goto("/admin/mapping-errors");
+  await expect(page).toHaveURL(/\/admin\/mapping-errors$/);
   await expect(page.getByRole("heading", { name: "API Mapping Errors", exact: true })).toBeVisible();
 });
 
