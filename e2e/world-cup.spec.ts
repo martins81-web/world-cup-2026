@@ -34,18 +34,18 @@ async function signInFromCurrentAdminPage(page: Page) {
     signInButton.click()
   ]);
 
-  await expect(page).toHaveURL(/\/admin\/sync$/);
+  await expect(page).toHaveURL(/\/admin$/);
   await expect(page.getByText("Unauthorized")).toHaveCount(0);
   await expect(page.getByRole("button", {
     name: "Sign in",
     exact: true
   })).toHaveCount(0);
   await expect(page.getByRole("heading", {
-    name: "Admin Synchronization",
+    name: "Admin",
     exact: true
   })).toBeVisible();
-  await expect(page.getByRole("button", {
-    name: "Run sync",
+  await expect(page.getByRole("link", {
+    name: "Synchronization",
     exact: true
   })).toBeVisible();
 }
@@ -104,6 +104,8 @@ test("admin login, unauthorized access and manual synchronization", async ({ pag
   await page.goto("/admin/sync");
   await page.waitForURL(/\/admin/);
   await signInFromCurrentAdminPage(page);
+  await page.goto("/admin/sync");
+  await expect(page).toHaveURL(/\/admin\/sync$/);
   await expect(page.getByRole("button", { name: /Run sync/i })).toBeVisible();
 });
 
