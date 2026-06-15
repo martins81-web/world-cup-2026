@@ -1,4 +1,24 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
+
+function adminCredentials() {
+  const adminUsername = process.env.ADMIN_EMAIL ?? "admin";
+  const adminPassword = process.env.ADMIN_PASSWORD ?? process.env.ADMIN_SYNC_TOKEN;
+  if (!adminPassword) {
+    throw new Error("Admin password is not configured. Set ADMIN_PASSWORD or ADMIN_SYNC_TOKEN.");
+  }
+  return { adminUsername, adminPassword };
+}
+
+async function signInFromCurrentAdminPage(page: Page) {
+  const { adminUsername, adminPassword } = adminCredentials();
+  await page.getByLabel("Username").fill(adminUsername);
+  await page.getByLabel("Password").fill(adminPassword);
+  await Promise.all([
+    page.waitForURL(/\/admin\/sync/),
+    page.getByRole("button", { name: "Sign in" }).click()
+  ]);
+  await expect(page.getByText("Unauthorized")).toHaveCount(0);
+}
 
 test("homepage and widget fallback", async ({ page }) => {
   await page.goto("/");
@@ -24,7 +44,7 @@ test("groups, third place, bracket and statistics", async ({ page }) => {
   await page.goto("/third-place");
   await expect(page.getByRole("heading", { name: "Third-place Ranking" })).toBeVisible();
   await page.goto("/bracket");
-  await expect(page.getByRole("heading", { name: "Bracket" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Bracket", exact: true })).toBeVisible();
   await expect(page.getByRole("table", { name: /Accessible knockout bracket/i })).toBeVisible();
   await page.goto("/statistics");
   await expect(page.getByRole("heading", { name: "Statistics" })).toBeVisible();
@@ -47,28 +67,23 @@ test("team, squad and player pages", async ({ page }) => {
 
 test("admin login, unauthorized access and manual synchronization", async ({ page }) => {
   await page.goto("/admin/sync");
-  await expect(page).toHaveURL(/\/admin/);
-  await page.goto("/admin");
-  await page.getByLabel("Username").fill("admin");
-  await page.getByLabel("Password").fill("test-admin-sync-token-123");
-  await page.getByRole("button", { name: "Sign in" }).click();
-  await expect(page).toHaveURL(/\/admin\/sync/);
+  await page.waitForURL(/\/admin/);
+  await signInFromCurrentAdminPage(page);
   await expect(page.getByRole("button", { name: /Run sync/i })).toBeVisible();
 });
 
 test("provider conflict resolution page", async ({ page }) => {
   await page.goto("/admin");
-  await page.getByLabel("Username").fill("admin");
-  await page.getByLabel("Password").fill("test-admin-sync-token-123");
-  await page.getByRole("button", { name: "Sign in" }).click();
+  await signInFromCurrentAdminPage(page);
   await page.goto("/admin/mapping-errors");
-  await expect(page.getByRole("heading", { name: "API Mapping Errors" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "API Mapping Errors", exact: true })).toBeVisible();
 });
 
 test("mobile navigation and focus", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/");
   await page.keyboard.press("Tab");
-  await expect(page.locator(":focus")).toBeVisible();
-  await expect(page.getByRole("link", { name: "matches" })).toBeVisible();
+  const firstFocusable = page.getByRole("link", { name: "matches" });
+  await expect(firstFocusable).toBeFocused();
+  await expect(firstFocusable).toBeVisible();
 });
