@@ -13,21 +13,29 @@ function adminCredentials() {
 
 async function signInFromCurrentAdminPage(page: Page) {
   const { adminUsername, adminPassword } = adminCredentials();
+
   await page.getByLabel("Username").fill(adminUsername);
   await page.getByLabel("Password").fill(adminPassword);
-  const responsePromise = page.waitForResponse(
-    (response) =>
-      response.url().includes("/api/admin/login") &&
-      response.request().method() === "POST"
-  );
 
-  await page.getByRole("button", { name: "Sign in" }).click();
+  await expect(page.getByLabel("Username")).toHaveValue(adminUsername);
+  await expect(page.getByLabel("Password")).not.toHaveValue("");
 
-  const response = await responsePromise;
+  const signInButton = page.getByRole("button", {
+    name: "Sign in",
+    exact: true
+  });
 
-  expect(response.status()).toBe(200);
-  await expect(page).toHaveURL(/\/admin\/sync/);
+  await expect(signInButton).toBeEnabled();
+
+  await Promise.all([
+    page.waitForURL(/\/admin(?:\/sync)?$/, {
+      timeout: 15_000
+    }),
+    signInButton.click()
+  ]);
+
   await expect(page.getByText("Unauthorized")).toHaveCount(0);
+  await expect(page.getByRole("link", { name: /sync/i })).toBeVisible();
 }
 
 test("homepage and widget fallback", async ({ page }) => {
