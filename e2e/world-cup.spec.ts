@@ -20,35 +20,44 @@ async function signInFromCurrentAdminPage(page: Page) {
   await expect(page.getByLabel("Username")).toHaveValue(adminUsername);
   await expect(page.getByLabel("Password")).not.toHaveValue("");
 
-  const loginResponsePromise = page.waitForResponse(
-    (response) => {
-      const url = new URL(response.url());
-
-      return (
-        url.pathname === "/api/admin/login" &&
-        response.request().method() === "POST"
-      );
-    },
-    { timeout: 15_000 }
-  );
-
-  await page.getByRole("button", {
+  const signInButton = page.getByRole("button", {
     name: "Sign in",
     exact: true
-  }).click();
+  });
 
-  const loginResponse = await loginResponsePromise;
+  await expect(signInButton).toBeEnabled();
+  await signInButton.click();
 
-  expect(
-    loginResponse.status(),
-    `Admin login failed with HTTP ${loginResponse.status()}`
-  ).toBe(200);
+  const loginError = page.getByText("Unauthorized", { exact: true });
 
-  await page.waitForURL(/\/admin$/, {
+  if (await loginError.isVisible().catch(() => false)) {
+    throw new Error(`Admin login failed: ${await loginError.textContent()}`);
+  }
+
+  await expect(page).toHaveURL(/\/admin(?:\/sync)?$/, {
     timeout: 15_000
   });
 
+  await expect
+    .poll(
+      async () =>
+        page
+          .getByRole("button", {
+            name: "Sign in",
+            exact: true
+          })
+          .count(),
+      {
+        timeout: 15_000,
+        message: "The login form should disappear after authentication"
+      }
+    )
+    .toBe(0);
+
   await expect(page.getByText("Unauthorized")).toHaveCount(0);
+
+  await page.goto("/admin");
+  await expect(page).toHaveURL(/\/admin$/);
   await expect(page.getByRole("button", {
     name: "Sign in",
     exact: true
