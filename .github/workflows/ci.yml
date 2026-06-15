@@ -29,6 +29,7 @@ jobs:
       ADMIN_SYNC_TOKEN: ci-admin-sync-token-123
       ADMIN_SESSION_SECRET: ci-admin-session-secret-123456789
       ADMIN_USERNAME: admin
+      E2E_ADMIN_PASSWORD: ci-e2e-admin-password-123
       NEXT_PUBLIC_API_SPORTS_WIDGET_KEY: ""
       NEXT_PUBLIC_API_SPORTS_WIDGET_HOST: https://widgets.api-sports.io
     steps:
@@ -44,6 +45,10 @@ jobs:
       - run: npm test
       - run: npm run test:integration
       - run: npx playwright install --with-deps chromium
+      - name: Configure E2E admin password
+        run: |
+          HASH=$(node -e 'const crypto = require("node:crypto"); const salt = crypto.randomBytes(16).toString("hex"); const hash = crypto.pbkdf2Sync(process.env.E2E_ADMIN_PASSWORD, salt, 120000, 32, "sha256").toString("hex"); console.log("pbkdf2_sha256$120000$" + salt + "$" + hash)')
+          echo "ADMIN_PASSWORD_HASH=$HASH" >> "$GITHUB_ENV"
       - run: npm run test:e2e
       - name: Upload Playwright report
         if: failure()

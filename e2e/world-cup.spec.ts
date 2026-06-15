@@ -2,14 +2,10 @@ import { expect, test, type Page } from "@playwright/test";
 
 function adminCredentials() {
   const adminUsername = process.env.ADMIN_USERNAME ?? "admin";
-  const adminPassword =
-    process.env.ADMIN_PASSWORD ??
-    process.env.ADMIN_SYNC_TOKEN;
+  const adminPassword = process.env.E2E_ADMIN_PASSWORD;
 
   if (!adminPassword) {
-    throw new Error(
-      "Admin password is not configured. Set ADMIN_PASSWORD or ADMIN_SYNC_TOKEN."
-    );
+    throw new Error("E2E_ADMIN_PASSWORD is not configured.");
   }
 
   return { adminUsername, adminPassword };
@@ -79,7 +75,12 @@ test("team, squad and player pages", async ({ page }) => {
   }
 });
 
-test("admin login, unauthorized access and manual synchronization", async ({ page }) => {
+test("admin login, unauthorized access and manual synchronization", async ({ page }, testInfo) => {
+  test.skip(
+    testInfo.project.name === "mobile",
+    "Admin authentication flow is covered by Chromium."
+  );
+
   await page.goto("/admin/sync");
   await page.waitForURL(/\/admin/);
   await signInFromCurrentAdminPage(page);
