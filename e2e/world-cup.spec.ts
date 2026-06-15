@@ -20,21 +20,34 @@ async function signInFromCurrentAdminPage(page: Page) {
   await expect(page.getByLabel("Username")).toHaveValue(adminUsername);
   await expect(page.getByLabel("Password")).not.toHaveValue("");
 
-  const signInButton = page.getByRole("button", {
+  const loginResponsePromise = page.waitForResponse(
+    (response) => {
+      const url = new URL(response.url());
+
+      return (
+        url.pathname === "/api/admin/login" &&
+        response.request().method() === "POST"
+      );
+    },
+    { timeout: 15_000 }
+  );
+
+  await page.getByRole("button", {
     name: "Sign in",
     exact: true
+  }).click();
+
+  const loginResponse = await loginResponsePromise;
+
+  expect(
+    loginResponse.status(),
+    `Admin login failed with HTTP ${loginResponse.status()}`
+  ).toBe(200);
+
+  await page.waitForURL(/\/admin$/, {
+    timeout: 15_000
   });
 
-  await expect(signInButton).toBeEnabled();
-
-  await Promise.all([
-    page.waitForURL(/\/admin(?:\/sync)?$/, {
-      timeout: 15_000
-    }),
-    signInButton.click()
-  ]);
-
-  await expect(page).toHaveURL(/\/admin$/);
   await expect(page.getByText("Unauthorized")).toHaveCount(0);
   await expect(page.getByRole("button", {
     name: "Sign in",
@@ -91,35 +104,37 @@ test("team, squad and player pages", async ({ page }) => {
   }
 });
 
-test("admin login, unauthorized access and manual synchronization", async ({ page }, testInfo) => {
-  test.skip(
-    testInfo.project.name === "mobile",
-    "Admin authentication flow is covered by Chromium."
-  );
+test.describe.serial("admin", () => {
+  test("admin login, unauthorized access and manual synchronization", async ({ page }, testInfo) => {
+    test.skip(
+      testInfo.project.name === "mobile",
+      "Admin authentication is covered by Chromium."
+    );
 
-  await page.goto("/admin/sync");
-  await page.waitForURL(/\/admin/);
-  await signInFromCurrentAdminPage(page);
-  await page.goto("/admin/sync");
-  await expect(page).toHaveURL(/\/admin\/sync$/);
-  await expect(page.getByRole("heading", {
-    name: "Admin Synchronization",
-    exact: true
-  })).toBeVisible();
-  await expect(page.getByRole("button", { name: /Run sync/i })).toBeVisible();
-});
+    await page.goto("/admin/sync");
+    await page.waitForURL(/\/admin/);
+    await signInFromCurrentAdminPage(page);
+    await page.goto("/admin/sync");
+    await expect(page).toHaveURL(/\/admin\/sync$/);
+    await expect(page.getByRole("heading", {
+      name: "Admin Synchronization",
+      exact: true
+    })).toBeVisible();
+    await expect(page.getByRole("button", { name: /Run sync/i })).toBeVisible();
+  });
 
-test("provider conflict resolution page", async ({ page }, testInfo) => {
-  test.skip(
-    testInfo.project.name === "mobile",
-    "Admin conflict resolution is covered by Chromium."
-  );
+  test("provider conflict resolution page", async ({ page }, testInfo) => {
+    test.skip(
+      testInfo.project.name === "mobile",
+      "Admin conflict resolution is covered by Chromium."
+    );
 
-  await page.goto("/admin");
-  await signInFromCurrentAdminPage(page);
-  await page.goto("/admin/mapping-errors");
-  await expect(page).toHaveURL(/\/admin\/mapping-errors$/);
-  await expect(page.getByRole("heading", { name: "API Mapping Errors", exact: true })).toBeVisible();
+    await page.goto("/admin");
+    await signInFromCurrentAdminPage(page);
+    await page.goto("/admin/mapping-errors");
+    await expect(page).toHaveURL(/\/admin\/mapping-errors$/);
+    await expect(page.getByRole("heading", { name: "API Mapping Errors", exact: true })).toBeVisible();
+  });
 });
 
 test("mobile navigation and focus", async ({ page }) => {
