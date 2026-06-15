@@ -34,8 +34,20 @@ async function signInFromCurrentAdminPage(page: Page) {
     signInButton.click()
   ]);
 
+  await expect(page).toHaveURL(/\/admin\/sync$/);
   await expect(page.getByText("Unauthorized")).toHaveCount(0);
-  await expect(page.getByRole("link", { name: /sync/i })).toBeVisible();
+  await expect(page.getByRole("button", {
+    name: "Sign in",
+    exact: true
+  })).toHaveCount(0);
+  await expect(page.getByRole("heading", {
+    name: "Admin Synchronization",
+    exact: true
+  })).toBeVisible();
+  await expect(page.getByRole("button", {
+    name: "Run sync",
+    exact: true
+  })).toBeVisible();
 }
 
 test("homepage and widget fallback", async ({ page }) => {
