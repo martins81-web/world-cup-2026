@@ -3,6 +3,7 @@ import { ApiSportsWidget } from "@/components/api-sports-widget";
 import { DevelopmentNotice } from "@/components/development-notice";
 import { MatchCard } from "@/components/match-card";
 import { getGroupsWithTables, getMatches, getThirdPlaceRanking, getTournament } from "@/lib/data/world-cup";
+import { selectUpcomingMatches } from "@/lib/tournament/upcoming";
 
 export const dynamic = "force-dynamic";
 
@@ -11,6 +12,7 @@ export default async function HomePage() {
   const matches = await getMatches();
   const { tables } = await getGroupsWithTables();
   const { ranking } = await getThirdPlaceRanking();
+  const upcomingMatches = selectUpcomingMatches(matches);
 
   return (
     <main>
@@ -28,13 +30,13 @@ export default async function HomePage() {
       </section>
       <section className="mx-auto grid max-w-6xl gap-6 px-6 py-8 lg:grid-cols-[1.2fr_0.8fr]">
         <div>
-          <h2 className="text-2xl font-semibold">Upcoming Matches</h2>
+          <h2 className="text-2xl font-semibold">Upcoming matches</h2>
           <div className="mt-4">
             <ApiSportsWidget type="live" title="Live matches" fallback={<p className="text-sm text-black/60">Live widget not available.</p>} />
           </div>
           <div className="mt-4 grid gap-4">
-            {matches.slice(0, 6).map((match) => <MatchCard key={match.id} match={match} />)}
-            {matches.length === 0 ? <p>Not available</p> : null}
+            {upcomingMatches.map((match) => <MatchCard key={match.id} match={match} />)}
+            {upcomingMatches.length === 0 ? <p className="rounded-md border bg-white p-4 text-sm text-black/60">No upcoming matches are available yet.</p> : null}
           </div>
         </div>
         <div className="space-y-6">
