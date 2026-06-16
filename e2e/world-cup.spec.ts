@@ -76,6 +76,9 @@ async function signInFromCurrentAdminPage(page: Page) {
 test("homepage and widget fallback", async ({ page }) => {
   await page.goto("/");
   await expect(page.getByRole("heading", { name: /World Cup 2026/i })).toBeVisible();
+  for (const heading of ["Featured match", "Upcoming matches", "Recent results", "Team showcase", "Group overview", "Bracket preview"]) {
+    await expect(page.getByRole("heading", { name: heading, exact: true })).toBeVisible();
+  }
   await expect(page.getByTestId("widget-fallback").first()).toBeVisible();
 });
 
@@ -85,9 +88,11 @@ test("matches filters and details", async ({ page }) => {
   await page.getByPlaceholder("Team").fill("Mexico");
   await page.getByRole("button", { name: "Filter" }).click();
   await expect(page).toHaveURL(/team=Mexico/);
+  await expect(page.getByRole("link", { name: "View statistics" }).first()).toHaveAttribute("href", /#statistics$/);
   await page.goto("/matches/1");
   await expect(page.getByRole("heading", { name: /Match/i })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Lineups" })).toBeVisible();
+  await expect(page.locator("#statistics")).toBeVisible();
 });
 
 test("groups, third place, bracket and statistics", async ({ page }) => {

@@ -219,7 +219,10 @@ export function findSportsDbEvent(
 }
 
 export function sportsDbImageUrl(...candidates: Array<string | null | undefined>) {
-  return candidates.find((candidate) => typeof candidate === "string" && /^https?:\/\//i.test(candidate));
+  const imageUrl = candidates.find((candidate) => typeof candidate === "string" && /^https?:\/\//i.test(candidate));
+  if (!imageUrl) return undefined;
+  if (/\/(tiny|small|medium)$/i.test(imageUrl)) return imageUrl;
+  return `${imageUrl}/small`;
 }
 
 export function normalizeSportsDbName(value: string) {

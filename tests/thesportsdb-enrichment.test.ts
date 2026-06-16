@@ -83,8 +83,8 @@ describe("TheSportsDB widget enrichment matching", () => {
 
     expect(matchedEvent?.idEvent).toBe("event-1");
     expect(matchedTeam?.idTeam).toBe("1");
-    expect(sportsDbImageUrl(matchedEvent?.strThumb)).toBe("https://cdn.example/match.jpg");
-    expect(sportsDbImageUrl(matchedTeam?.strTeamBadge)).toBe("https://cdn.example/mexico.png");
+    expect(sportsDbImageUrl(matchedEvent?.strThumb)).toBe("https://cdn.example/match.jpg/small");
+    expect(sportsDbImageUrl(matchedTeam?.strTeamBadge)).toBe("https://cdn.example/mexico.png/small");
   });
 });
 

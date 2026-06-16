@@ -65,7 +65,7 @@ export default async function MatchPage({ params }: { params: Promise<{ id: stri
           </div>
           {match.events.length === 0 ? <p className="mt-3">Not available</p> : null}
         </section>
-        <section className="mt-8">
+        <section id="statistics" className="mt-8 scroll-mt-24">
           <h2 className="text-xl font-semibold">Statistics</h2>
           <div className="mt-3 grid gap-3 md:grid-cols-2">
             {match.statistics.map((statistic) => (

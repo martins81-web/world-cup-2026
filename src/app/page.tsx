@@ -1,13 +1,14 @@
-import Link from "next/link";
 import { ApiSportsWidget } from "@/components/api-sports-widget";
 import { DevelopmentNotice } from "@/components/development-notice";
 import { FeaturedMatchWidget } from "@/components/widgets/featured-match-widget";
+import { BracketPreviewWidget } from "@/components/widgets/bracket-preview-widget";
+import { GroupOverviewWidget } from "@/components/widgets/group-overview-widget";
 import { NextMatchesWidget } from "@/components/widgets/next-matches-widget";
 import { RecentResultsWidget } from "@/components/widgets/recent-results-widget";
 import { TeamShowcaseWidget } from "@/components/widgets/team-showcase-widget";
-import { getGroupsWithTables, getMatches, getTeams, getThirdPlaceRanking, getTournament } from "@/lib/data/world-cup";
+import { getBracket, getGroupsWithTables, getMatches, getTeams, getThirdPlaceRanking, getTournament } from "@/lib/data/world-cup";
 import { getTheSportsDbEnrichment } from "@/lib/providers/thesportsdb";
-import { selectUpcomingMatches } from "@/lib/tournament/upcoming";
+import { getFeaturedMatch, getGroupPreview, getRecentResults, getTeamShowcase, getUpcomingMatches } from "@/lib/tournament/upcoming";
 
 export const dynamic = "force-dynamic";
 
@@ -17,9 +18,14 @@ export default async function HomePage() {
   const { teams } = await getTeams();
   const { tables } = await getGroupsWithTables();
   const { ranking } = await getThirdPlaceRanking();
+  const { matches: bracketMatches } = await getBracket();
   const sportsDb = await getTheSportsDbEnrichment();
   const sportsDbEvents = [...sportsDb.seasonEvents, ...sportsDb.nextEvents, ...sportsDb.previousEvents];
-  const upcomingMatches = selectUpcomingMatches(matches);
+  const featuredMatch = getFeaturedMatch(matches);
+  const upcomingMatches = getUpcomingMatches(matches, 6);
+  const recentMatches = getRecentResults(matches, 4);
+  const showcaseTeams = getTeamShowcase(teams, 4);
+  const previewGroups = getGroupPreview(tables, 6);
 
   return (
     <main>
@@ -28,16 +34,11 @@ export default async function HomePage() {
         <div className="mx-auto max-w-6xl px-6 py-10">
           <h1 className="text-4xl font-semibold">{tournament?.name ?? "World Cup 2026"}</h1>
           <p className="mt-3 text-white/75">{matches.length} matches loaded from PostgreSQL.</p>
-          <nav className="mt-6 flex flex-wrap gap-3 text-sm">
-            {["matches", "groups", "third-place", "bracket", "teams"].map((route) => (
-              <Link key={route} className="rounded bg-white/10 px-3 py-2 hover:bg-white/20" href={`/${route}`}>{route}</Link>
-            ))}
-          </nav>
         </div>
       </section>
       <section className="mx-auto grid max-w-6xl gap-6 px-6 py-8 lg:grid-cols-[1.2fr_0.8fr]">
         <div>
-          <FeaturedMatchWidget match={upcomingMatches[0]} events={sportsDbEvents} />
+          <FeaturedMatchWidget match={featuredMatch} events={sportsDbEvents} />
           <div className="mt-4">
             <ApiSportsWidget type="live" title="Live matches" fallback={<p className="text-sm text-black/60">Live widget not available.</p>} />
           </div>
@@ -45,11 +46,15 @@ export default async function HomePage() {
             <NextMatchesWidget matches={upcomingMatches} events={sportsDbEvents} title="Upcoming matches" />
           </div>
           <div className="mt-8">
-            <TeamShowcaseWidget teams={teams.slice(0, 4)} sportsDbTeams={sportsDb.teams} />
+            <TeamShowcaseWidget teams={showcaseTeams} sportsDbTeams={sportsDb.teams} />
+          </div>
+          <div className="mt-8">
+            <GroupOverviewWidget tables={previewGroups} />
           </div>
         </div>
         <div className="space-y-6">
-          <RecentResultsWidget matches={matches} events={sportsDbEvents} />
+          <RecentResultsWidget matches={recentMatches} events={sportsDbEvents} />
+          <BracketPreviewWidget matches={bracketMatches} />
           <section>
             <h2 className="text-2xl font-semibold">Group Leaders</h2>
             <div className="mt-4 space-y-2">

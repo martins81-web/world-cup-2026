@@ -2,7 +2,11 @@ import { DevelopmentNotice } from "@/components/development-notice";
 import { ApiSportsWidget } from "@/components/api-sports-widget";
 import { MatchCard } from "@/components/match-card";
 import { MatchFilters } from "@/components/match-filters";
+import { NextMatchesWidget } from "@/components/widgets/next-matches-widget";
+import { RecentResultsWidget } from "@/components/widgets/recent-results-widget";
 import { getMatches, getTournament } from "@/lib/data/world-cup";
+import { getTheSportsDbEnrichment } from "@/lib/providers/thesportsdb";
+import { getRecentResults, getUpcomingMatches } from "@/lib/tournament/upcoming";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Matches | World Cup 2026" };
@@ -11,6 +15,11 @@ export default async function MatchesPage({ searchParams }: { searchParams: Prom
   const filters = await searchParams;
   const tournament = await getTournament();
   const matches = await getMatches(filters);
+  const allMatches = await getMatches();
+  const sportsDb = await getTheSportsDbEnrichment();
+  const sportsDbEvents = [...sportsDb.seasonEvents, ...sportsDb.nextEvents, ...sportsDb.previousEvents];
+  const upcomingMatches = getUpcomingMatches(allMatches, 6);
+  const recentMatches = getRecentResults(allMatches, 4);
 
   return (
     <main>
@@ -19,6 +28,10 @@ export default async function MatchesPage({ searchParams }: { searchParams: Prom
         <h1 className="text-3xl font-semibold">Matches</h1>
         <div className="mt-5">
           <ApiSportsWidget type="games" title="API-Sports match list" fallback={<p className="text-sm text-black/60">Widget not available. Custom match list is shown below.</p>} />
+        </div>
+        <div className="mt-6 grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
+          <NextMatchesWidget matches={upcomingMatches} events={sportsDbEvents} title="Upcoming fixtures" />
+          <RecentResultsWidget matches={recentMatches} events={sportsDbEvents} />
         </div>
         <div className="mt-5"><MatchFilters defaults={filters} /></div>
         <div className="mt-6 grid gap-4 md:grid-cols-2">
