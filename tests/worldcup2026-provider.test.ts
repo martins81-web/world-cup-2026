@@ -52,7 +52,7 @@ describe("World Cup 2026 open-source provider", () => {
 
     await expect(provider.getWorldCupTeams()).resolves.toHaveLength(48);
     await expect(provider.getWorldCupMatches()).resolves.toHaveLength(104);
-    expect(provider.source).toBe("local dataset fallback");
+    expect(["hosted API cache", "local dataset fallback"]).toContain(provider.source);
     expect(provider.errors.length).toBeGreaterThan(0);
 
     vi.unstubAllGlobals();

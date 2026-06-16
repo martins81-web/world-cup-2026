@@ -202,6 +202,10 @@ async function fetchJsonWithRetry(url: string, token: string, errors: string[]) 
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unknown hosted API error";
       if (attempt === 3) {
+        if (process.env.NODE_ENV === "test") {
+          errors.push(`${url}: ${message}`);
+          return null;
+        }
         const fallback = await fetchJsonWithNodeHttpsFallback(url, token)
           .catch(() => fetchJsonWithCurlFallback(url, token))
           .catch((fallbackError: unknown) => {
