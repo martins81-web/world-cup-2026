@@ -96,7 +96,7 @@ export function calculateKnockoutWinner(match: Pick<Match, "homeTeamId" | "awayT
 export function rankThirdPlaceTeams(tables: GroupTable[]) {
   return tables
     .map((table) => table.rows[2])
-    .filter((row): row is GroupTableRow => Boolean(row))
+    .filter((row): row is GroupTableRow => Boolean(row) && row.played > 0)
     .sort((a, b) =>
       b.points - a.points ||
       b.goalDifference - a.goalDifference ||

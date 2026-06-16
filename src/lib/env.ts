@@ -14,14 +14,18 @@ const serverEnvSchema = z.object({
   WORLDCUP2026_API_ENABLED: z.enum(["true", "false"]).default("false"),
   WORLDCUP2026_API_BASE_URL: z.string().url().default("https://worldcup26.ir"),
   WORLDCUP2026_API_TOKEN: z.string().optional().default(""),
+  THESPORTSDB_ENABLED: z.enum(["true", "false"]).default("false"),
   THESPORTSDB_KEY: z.string().optional().default(""),
   THESPORTSDB_BASE_URL: z.string().url().default("https://www.thesportsdb.com/api/v1/json"),
+  THESPORTSDB_LEAGUE_ID: z.string().default("4429"),
+  THESPORTSDB_SEASON: z.string().default("2026"),
   EXTERNAL_API_CACHE_TTL_SECONDS: z.coerce.number().int().positive().default(21600),
   API_FOOTBALL_DAILY_LIMIT: z.coerce.number().int().positive().default(100)
 }).transform((value) => ({
   ...value,
   ADMIN_SESSION_SECRET: value.ADMIN_SESSION_SECRET || value.ADMIN_SYNC_TOKEN,
-  WORLDCUP2026_API_ENABLED: value.WORLDCUP2026_API_ENABLED === "true"
+  WORLDCUP2026_API_ENABLED: value.WORLDCUP2026_API_ENABLED === "true",
+  THESPORTSDB_ENABLED: value.THESPORTSDB_ENABLED === "true"
 }));
 
 export const env = serverEnvSchema.parse(process.env);

@@ -68,6 +68,34 @@ describe("tournament engine", () => {
     expect(ranking[8]).toMatchObject({ rank: 9, qualified: false });
   });
 
+  it("does not rank third-place teams from groups with no completed matches", () => {
+    const tables = [{
+      groupName: "Group A",
+      rows: [
+        row("a1", "Alpha", 0, 0),
+        row("a2", "Beta", 0, 0),
+        row("a3", "Gamma", 0, 0),
+        row("a4", "Delta", 0, 0)
+      ]
+    }, {
+      groupName: "Group B",
+      rows: [
+        row("b1", "Winner", 6),
+        row("b2", "Runner", 4),
+        row("b3", "Real Third", 3),
+        row("b4", "Fourth", 0)
+      ]
+    }];
+
+    const ranking = rankThirdPlaceTeams(tables);
+
+    expect(ranking).toHaveLength(1);
+    expect(ranking[0]).toMatchObject({
+      teamName: "Real Third",
+      qualificationStatus: "PROVISIONAL"
+    });
+  });
+
   it("exposes knockout winner progression into target match slots", () => {
     const source = {
       id: "source",
@@ -129,11 +157,11 @@ describe("tournament engine", () => {
   });
 });
 
-function row(teamId: string, teamName: string, points: number) {
+function row(teamId: string, teamName: string, points: number, played = 3) {
   return {
     teamId,
     teamName,
-    played: 3,
+    played,
     won: 0,
     drawn: 0,
     lost: 0,

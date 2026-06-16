@@ -17,13 +17,13 @@ export default async function ThirdPlacePage() {
             <tbody>
               {ranking.map((row) => (
                 <tr key={row.teamId} className="border-t">
-                  <td className="p-3">{row.rank}</td><td>{row.teamName}</td><td>{row.goalDifference}</td><td className="bg-gold/20 font-semibold">{row.points}</td><td>{row.qualified ? "Qualified" : "Pending"}</td>
+                  <td className="p-3">{row.rank}</td><td>{row.teamName}</td><td>{row.goalDifference}</td><td className="bg-gold/20 font-semibold">{row.points}</td><td>{row.qualificationStatus === "PROVISIONAL" ? "Provisional" : "Pending"}</td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
-        {ranking.length === 0 ? <p className="mt-6">Not available</p> : null}
+        {ranking.length === 0 ? <p className="mt-6 rounded-md border bg-white p-4 text-sm text-black/60">Third-place ranking will appear after group matches are played.</p> : null}
       </section>
     </main>
   );

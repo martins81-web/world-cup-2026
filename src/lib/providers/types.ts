@@ -137,4 +137,14 @@ export interface FootballProvider {
   getWorldCupEvents?(): Promise<ProviderEvent[]>;
   getWorldCupMatchStatistics?(): Promise<ProviderMatchStatistic[]>;
   getWorldCupTeamStatistics?(): Promise<ProviderTeamStatistic[]>;
+  syncEnrichmentOnly?(): Promise<{
+    status: "skipped" | "success" | "partial" | "failed";
+    message: string;
+    teamsSeen: number;
+    matchesSeen: number;
+    groupsSeen?: number;
+    stadiumsSeen?: number;
+    source?: string;
+    errors?: string[];
+  }>;
 }

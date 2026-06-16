@@ -257,7 +257,57 @@ async function upsertStadium(stadium: ProviderStadium) {
 
 export async function synchronizeProvider(provider: FootballProvider): Promise<SyncResult> {
   if (!provider.isConfigured()) {
-    return { provider: provider.name, status: "skipped", message: "Provider is not configured.", teamsSeen: 0, matchesSeen: 0, groupsSeen: 0, stadiumsSeen: 0, source: provider.source };
+    const message = getProviderConfigurationMessage(provider);
+    await prisma.syncRun.create({
+      data: {
+        provider: provider.name,
+        status: "skipped",
+        finishedAt: new Date(),
+        message,
+        source: provider.source,
+        errors: provider.errors as Prisma.InputJsonValue
+      }
+    });
+    return { provider: provider.name, status: "skipped", message, teamsSeen: 0, matchesSeen: 0, groupsSeen: 0, stadiumsSeen: 0, source: provider.source, errors: provider.errors };
+  }
+
+  if (provider.syncEnrichmentOnly) {
+    const run = await prisma.syncRun.create({ data: { provider: provider.name, status: "running", source: provider.source } });
+    try {
+      const result = await provider.syncEnrichmentOnly();
+      await prisma.syncRun.update({
+        where: { id: run.id },
+        data: {
+          status: result.status,
+          finishedAt: new Date(),
+          message: result.message,
+          teamsSeen: result.teamsSeen,
+          matchesSeen: result.matchesSeen,
+          groupsSeen: result.groupsSeen ?? 0,
+          stadiumsSeen: result.stadiumsSeen ?? 0,
+          source: result.source ?? provider.source,
+          errors: result.errors as Prisma.InputJsonValue
+        }
+      });
+      if (result.status === "failed") await sendSyncFailureAlert({ provider: provider.name, message: result.message, syncRunId: run.id });
+      return {
+        provider: provider.name,
+        status: result.status,
+        message: result.message,
+        teamsSeen: result.teamsSeen,
+        matchesSeen: result.matchesSeen,
+        groupsSeen: result.groupsSeen ?? 0,
+        stadiumsSeen: result.stadiumsSeen ?? 0,
+        source: result.source ?? provider.source,
+        errors: result.errors
+      };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unknown enrichment synchronization error";
+      await prisma.syncRun.update({ where: { id: run.id }, data: { status: "failed", finishedAt: new Date(), message, source: provider.source } });
+      await logApp("error", "sync", "Provider enrichment failed", { provider: provider.name, message });
+      await sendSyncFailureAlert({ provider: provider.name, message, syncRunId: run.id });
+      return { provider: provider.name, status: "failed", message, teamsSeen: 0, matchesSeen: 0, groupsSeen: 0, stadiumsSeen: 0, source: provider.source, errors: provider.errors };
+    }
   }
 
   const run = await prisma.syncRun.create({ data: { provider: provider.name, status: "running" } });
@@ -455,6 +505,11 @@ export async function synchronizeProvider(provider: FootballProvider): Promise<S
     await sendSyncFailureAlert({ provider: provider.name, message, syncRunId: run.id });
     return { provider: provider.name, status: "failed", message, teamsSeen: 0, matchesSeen: 0, groupsSeen: 0, stadiumsSeen: 0, source: provider.source, errors: provider.errors };
   }
+}
+
+function getProviderConfigurationMessage(provider: FootballProvider) {
+  const maybeProvider = provider as FootballProvider & { configurationMessage?: () => string };
+  return maybeProvider.configurationMessage?.() ?? "Provider is not configured.";
 }
 
 export async function synchronizeAllProviders() {

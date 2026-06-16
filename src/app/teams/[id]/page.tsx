@@ -1,9 +1,11 @@
 import Link from "next/link";
 import Image from "next/image";
 import { notFound } from "next/navigation";
-import { DevelopmentNotice } from "@/components/development-notice";
 import { ApiSportsWidget } from "@/components/api-sports-widget";
+import { DevelopmentNotice } from "@/components/development-notice";
+import { TeamShowcaseWidget } from "@/components/widgets/team-showcase-widget";
 import { getTeamById } from "@/lib/data/world-cup";
+import { getTheSportsDbEnrichment } from "@/lib/providers/thesportsdb";
 import { notAvailable } from "@/lib/ui";
 
 export const dynamic = "force-dynamic";
@@ -18,7 +20,9 @@ export default async function TeamPage({ params }: { params: Promise<{ id: strin
   const { id } = await params;
   const { tournament, team } = await getTeamById(id);
   if (!team) notFound();
+  const sportsDb = await getTheSportsDbEnrichment();
   const stats = team.statistics[0];
+
   return (
     <main>
       <DevelopmentNotice active={tournament?.isSeedData} />
@@ -26,6 +30,9 @@ export default async function TeamPage({ params }: { params: Promise<{ id: strin
         <h1 className="text-3xl font-semibold">{team.name}</h1>
         <div className="mt-5">
           <ApiSportsWidget type="team" team={team.apiFootballId} title="API-Sports team widget" fallback={<p className="text-sm text-black/60">Widget not available. Custom team profile is shown below.</p>} />
+        </div>
+        <div className="mt-6">
+          <TeamShowcaseWidget teams={[team]} sportsDbTeams={sportsDb.teams} title="TheSportsDB artwork" />
         </div>
         <Image className="mt-4 h-24 w-24 rounded object-contain" src={team.badgeUrl ?? "/fallback-team.svg"} alt="" width={96} height={96} />
         <p className="mt-2 text-black/60">{notAvailable(team.groupEntries[0]?.group.name)}</p>
