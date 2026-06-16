@@ -34,7 +34,15 @@ npm run start
 
 ## Scheduled Synchronization
 
-Vercel cron is configured in `vercel.json`. GitHub Actions has a fallback workflow in `.github/workflows/scheduled-sync.yml`.
+Vercel cron is configured in `vercel.json` and calls `/api/admin/sync` every 5 minutes. The route only syncs between 12:00 PM and 2:00 AM Montreal time. Set `CRON_SECRET` in production so scheduled requests are authorized with `Authorization: Bearer <CRON_SECRET>`.
+
+For local development during live matches, run:
+
+```bash
+npm run sync:auto
+```
+
+GitHub Actions has a fallback workflow in `.github/workflows/scheduled-sync.yml`.
 
 ## Smoke Test
 

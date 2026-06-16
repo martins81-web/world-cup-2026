@@ -2,38 +2,51 @@ import { Prisma, ProviderName } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { ApiFootballProvider } from "@/lib/providers/api-football";
 import { TheSportsDbProvider } from "@/lib/providers/thesportsdb";
+import { WorldCup2026OpenSourceProvider } from "@/lib/providers/worldcup2026";
 import { logApp } from "@/lib/logger";
 import { sendSyncFailureAlert } from "@/lib/monitoring";
-import type { FootballProvider, ProviderEvent, ProviderLineup, ProviderMatchStatistic, ProviderPlayer, ProviderTeam, ProviderTeamStatistic } from "@/lib/providers/types";
+import type { FootballProvider, ProviderEvent, ProviderLineup, ProviderMatchStatistic, ProviderPlayer, ProviderStadium, ProviderTeam, ProviderTeamStatistic } from "@/lib/providers/types";
 
 export type SyncResult = {
   provider: ProviderName;
-  status: "skipped" | "success" | "failed";
+  status: "skipped" | "success" | "partial" | "failed";
   message: string;
   teamsSeen: number;
   matchesSeen: number;
+  groupsSeen: number;
+  stadiumsSeen: number;
+  source?: string;
+  errors?: string[];
 };
 
 const TOURNAMENT_SLUG = "world-cup-2026";
 
 async function upsertTeam(team: ProviderTeam) {
-  const providerField = team.provider === ProviderName.API_FOOTBALL ? { apiFootballId: Number(team.providerId) } : { sportsDbId: team.providerId };
-  const existing = await findTeam(team.provider, team.providerId);
+  const providerField =
+    team.provider === ProviderName.API_FOOTBALL ? { apiFootballId: Number(team.providerId) } :
+      team.provider === ProviderName.THESPORTSDB ? { sportsDbId: team.providerId } :
+        { worldcup2026Id: team.providerId };
+  const existing = await findTeam(team.provider, team.providerId) ?? await findTeamByStaticIdentity(team);
   if (existing && existing.name !== team.name) {
     await prisma.providerDataConflict.create({
       data: { provider: team.provider, entityType: "Team", entityId: existing.id, field: "name", currentValue: existing.name, incomingValue: team.name }
     });
   }
-  return prisma.team.upsert({
-    where: team.provider === ProviderName.API_FOOTBALL ? { apiFootballId: Number(team.providerId) } : { sportsDbId: team.providerId },
-    update: {
-      name: team.name,
-      country: team.country,
-      fifaCode: team.fifaCode,
-      badgeUrl: team.badgeUrl,
-      ...providerField
-    },
-    create: {
+  if (existing) {
+    return prisma.team.update({
+      where: { id: existing.id },
+      data: {
+        name: team.name,
+        country: team.country,
+        fifaCode: team.fifaCode,
+        badgeUrl: team.badgeUrl,
+        ...providerField
+      }
+    });
+  }
+
+  return prisma.team.create({
+    data: {
       name: team.name,
       country: team.country,
       fifaCode: team.fifaCode,
@@ -60,9 +73,20 @@ async function recordMappingIssue(provider: ProviderName, issueType: string, mes
 
 async function findTeam(provider: ProviderName, providerId?: string) {
   if (!providerId) return null;
-  return provider === ProviderName.API_FOOTBALL
-    ? prisma.team.findUnique({ where: { apiFootballId: Number(providerId) } })
-    : prisma.team.findUnique({ where: { sportsDbId: providerId } });
+  if (provider === ProviderName.API_FOOTBALL) return prisma.team.findUnique({ where: { apiFootballId: Number(providerId) } });
+  if (provider === ProviderName.THESPORTSDB) return prisma.team.findUnique({ where: { sportsDbId: providerId } });
+  return prisma.team.findUnique({ where: { worldcup2026Id: providerId } });
+}
+
+async function findTeamByStaticIdentity(team: ProviderTeam) {
+  return prisma.team.findFirst({
+    where: {
+      OR: [
+        ...(team.fifaCode ? [{ fifaCode: team.fifaCode }] : []),
+        { name: team.name }
+      ]
+    }
+  });
 }
 
 async function findMatch(provider: ProviderName, providerId: string) {
@@ -208,9 +232,32 @@ async function ingestTeamStatistic(provider: ProviderName, tournamentId: string,
   });
 }
 
+async function upsertStadium(stadium: ProviderStadium) {
+  return prisma.stadium.upsert({
+    where: { worldcup2026Id: stadium.providerId },
+    update: {
+      name: stadium.name,
+      fifaName: stadium.fifaName,
+      city: stadium.city,
+      country: stadium.country,
+      capacity: stadium.capacity,
+      region: stadium.region
+    },
+    create: {
+      worldcup2026Id: stadium.providerId,
+      name: stadium.name,
+      fifaName: stadium.fifaName,
+      city: stadium.city,
+      country: stadium.country,
+      capacity: stadium.capacity,
+      region: stadium.region
+    }
+  });
+}
+
 export async function synchronizeProvider(provider: FootballProvider): Promise<SyncResult> {
   if (!provider.isConfigured()) {
-    return { provider: provider.name, status: "skipped", message: "Provider is not configured.", teamsSeen: 0, matchesSeen: 0 };
+    return { provider: provider.name, status: "skipped", message: "Provider is not configured.", teamsSeen: 0, matchesSeen: 0, groupsSeen: 0, stadiumsSeen: 0, source: provider.source };
   }
 
   const run = await prisma.syncRun.create({ data: { provider: provider.name, status: "running" } });
@@ -229,7 +276,21 @@ export async function synchronizeProvider(provider: FootballProvider): Promise<S
       }
     });
 
-    const teams = await provider.getWorldCupTeams();
+    const [teams, groups, stadiums] = await Promise.all([
+      provider.getWorldCupTeams(),
+      provider.getWorldCupGroups ? provider.getWorldCupGroups() : Promise.resolve([]),
+      provider.getWorldCupStadiums ? provider.getWorldCupStadiums() : Promise.resolve([])
+    ]);
+
+    if (teams.length === 0) {
+      const message = "Provider returned zero teams; existing data was retained.";
+      await prisma.syncRun.update({
+        where: { id: run.id },
+        data: { status: "skipped", finishedAt: new Date(), message, source: provider.source, errors: provider.errors as Prisma.InputJsonValue }
+      });
+      return { provider: provider.name, status: "skipped", message, teamsSeen: 0, matchesSeen: 0, groupsSeen: 0, stadiumsSeen: 0, source: provider.source, errors: provider.errors };
+    }
+
     for (const team of teams) {
       const dbTeam = await upsertTeam(team);
       await prisma.teamTournament.upsert({
@@ -239,10 +300,40 @@ export async function synchronizeProvider(provider: FootballProvider): Promise<S
       });
     }
 
+    for (const stadium of stadiums) {
+      await upsertStadium(stadium);
+    }
+
+    for (const group of groups) {
+      const dbGroup = await prisma.group.upsert({
+        where: { tournamentId_name: { tournamentId: tournament.id, name: group.name } },
+        update: {},
+        create: { tournamentId: tournament.id, name: group.name }
+      });
+      for (const providerId of group.teamProviderIds) {
+        const team = await findTeam(provider.name, providerId);
+        if (!team) continue;
+        await prisma.groupTeam.upsert({
+          where: { groupId_teamId: { groupId: dbGroup.id, teamId: team.id } },
+          update: {},
+          create: { groupId: dbGroup.id, teamId: team.id }
+        });
+      }
+    }
+
     const matches = await provider.getWorldCupMatches();
+    if (matches.length === 0) {
+      const message = "Provider returned zero matches; existing data was retained.";
+      await prisma.syncRun.update({
+        where: { id: run.id },
+        data: { status: "skipped", finishedAt: new Date(), message, teamsSeen: teams.length, groupsSeen: groups.length, stadiumsSeen: stadiums.length, source: provider.source, errors: provider.errors as Prisma.InputJsonValue }
+      });
+      return { provider: provider.name, status: "skipped", message, teamsSeen: teams.length, matchesSeen: 0, groupsSeen: groups.length, stadiumsSeen: stadiums.length, source: provider.source, errors: provider.errors };
+    }
     for (const match of matches) {
       const homeTeam = match.homeTeam ? await upsertTeam(match.homeTeam) : null;
       const awayTeam = match.awayTeam ? await upsertTeam(match.awayTeam) : null;
+      const stadium = match.stadiumProviderId ? await prisma.stadium.findUnique({ where: { worldcup2026Id: match.stadiumProviderId } }) : null;
       await prisma.match.upsert({
         where: { sourceProvider_providerId: { sourceProvider: match.provider, providerId: match.providerId } },
         update: {
@@ -257,6 +348,9 @@ export async function synchronizeProvider(provider: FootballProvider): Promise<S
           status: match.status,
           homeTeamId: homeTeam?.id,
           awayTeamId: awayTeam?.id,
+          stadiumId: stadium?.id,
+          homeSeed: match.homeSeed,
+          awaySeed: match.awaySeed,
           homeScore: match.homeScore,
           awayScore: match.awayScore,
           extraTimeHome: match.extraTimeHome,
@@ -279,6 +373,9 @@ export async function synchronizeProvider(provider: FootballProvider): Promise<S
           status: match.status,
           homeTeamId: homeTeam?.id,
           awayTeamId: awayTeam?.id,
+          stadiumId: stadium?.id,
+          homeSeed: match.homeSeed,
+          awaySeed: match.awaySeed,
           homeScore: match.homeScore,
           awayScore: match.awayScore,
           extraTimeHome: match.extraTimeHome,
@@ -333,23 +430,35 @@ export async function synchronizeProvider(provider: FootballProvider): Promise<S
       for (const statistic of await provider.getWorldCupTeamStatistics()) await ingestTeamStatistic(provider.name, tournament.id, statistic);
     }
 
+    const status = provider.errors && provider.errors.length > 0 ? "partial" : "success";
+    const message = status === "partial" ? "Synchronization completed with fallback/errors." : "Synchronization completed.";
     await prisma.syncRun.update({
       where: { id: run.id },
-      data: { status: "success", finishedAt: new Date(), teamsSeen: teams.length, matchesSeen: matches.length }
+      data: {
+        status,
+        finishedAt: new Date(),
+        teamsSeen: teams.length,
+        matchesSeen: matches.length,
+        groupsSeen: groups.length,
+        stadiumsSeen: stadiums.length,
+        source: provider.source,
+        message,
+        errors: provider.errors as Prisma.InputJsonValue
+      }
     });
 
-    return { provider: provider.name, status: "success", message: "Synchronization completed.", teamsSeen: teams.length, matchesSeen: matches.length };
+    return { provider: provider.name, status, message, teamsSeen: teams.length, matchesSeen: matches.length, groupsSeen: groups.length, stadiumsSeen: stadiums.length, source: provider.source, errors: provider.errors };
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown synchronization error";
     await prisma.syncRun.update({ where: { id: run.id }, data: { status: "failed", finishedAt: new Date(), message } });
     await logApp("error", "sync", "Provider synchronization failed", { provider: provider.name, message });
     await sendSyncFailureAlert({ provider: provider.name, message, syncRunId: run.id });
-    return { provider: provider.name, status: "failed", message, teamsSeen: 0, matchesSeen: 0 };
+    return { provider: provider.name, status: "failed", message, teamsSeen: 0, matchesSeen: 0, groupsSeen: 0, stadiumsSeen: 0, source: provider.source, errors: provider.errors };
   }
 }
 
 export async function synchronizeAllProviders() {
-  const providers: FootballProvider[] = [new ApiFootballProvider(), new TheSportsDbProvider()];
+  const providers: FootballProvider[] = [new WorldCup2026OpenSourceProvider(), new ApiFootballProvider(), new TheSportsDbProvider()];
   const results = [];
   for (const provider of providers) {
     results.push(await synchronizeProvider(provider));

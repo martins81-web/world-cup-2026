@@ -18,6 +18,7 @@ enum MatchStatus {
 enum ProviderName {
   API_FOOTBALL
   THESPORTSDB
+  WORLDCUP2026_OPEN_SOURCE
 }
 
 enum AdminRole {
@@ -50,6 +51,7 @@ model Team {
   name          String           @unique
   country       String
   badgeUrl      String?
+  worldcup2026Id String?         @unique
   apiFootballId Int?             @unique
   sportsDbId    String?          @unique
   createdAt     DateTime         @default(now())
@@ -97,6 +99,20 @@ model GroupTeam {
   @@unique([groupId, teamId])
 }
 
+model Stadium {
+  id              String   @id @default(cuid())
+  worldcup2026Id  String   @unique
+  name            String
+  fifaName        String?
+  city            String
+  country         String
+  capacity        Int?
+  region          String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  matches         Match[]
+}
+
 model Match {
   id             String      @id @default(cuid())
   tournamentId   String
@@ -112,6 +128,7 @@ model Match {
   status         MatchStatus @default(SCHEDULED)
   homeTeamId     String?
   awayTeamId     String?
+  stadiumId      String?
   homeSeed       String?
   awaySeed       String?
   homeScore      Int?
@@ -130,6 +147,7 @@ model Match {
   tournament     Tournament  @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
   homeTeam       Team?       @relation("HomeTeam", fields: [homeTeamId], references: [id])
   awayTeam       Team?       @relation("AwayTeam", fields: [awayTeamId], references: [id])
+  stadium        Stadium?    @relation(fields: [stadiumId], references: [id])
   winnerToMatch  Match?      @relation("WinnerProgression", fields: [winnerToMatchId], references: [id])
   winnerFrom     Match[]     @relation("WinnerProgression")
   loserToMatch   Match?      @relation("LoserProgression", fields: [loserToMatchId], references: [id])
@@ -142,6 +160,7 @@ model Match {
   @@unique([sourceProvider, providerId])
   @@unique([tournamentId, matchNumber])
   @@index([tournamentId, kickoffAt])
+  @@index([stadiumId])
   @@index([winnerToMatchId])
   @@index([loserToMatchId])
 }
@@ -402,4 +421,8 @@ model SyncRun {
   message     String?
   matchesSeen Int          @default(0)
   teamsSeen   Int          @default(0)
+  groupsSeen  Int          @default(0)
+  stadiumsSeen Int         @default(0)
+  source      String?
+  errors      Json?
 }

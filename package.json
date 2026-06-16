@@ -17,6 +17,7 @@
     "prisma:deploy": "prisma migrate deploy",
     "prisma:seed": "tsx prisma/seed.ts",
     "sync": "tsx scripts/sync.ts",
+    "sync:auto": "tsx scripts/auto-sync.ts",
     "smoke": "tsx scripts/smoke-test.ts",
     "smoke-test": "tsx scripts/smoke-test.ts"
   },

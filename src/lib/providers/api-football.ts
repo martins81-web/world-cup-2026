@@ -27,6 +27,19 @@ import {
 const WORLD_CUP_LEAGUE_ID = 1;
 const WORLD_CUP_SEASON = 2026;
 
+function assertNoApiFootballErrors(data: unknown) {
+  if (!data || typeof data !== "object" || !("errors" in data)) return;
+
+  const errors = (data as { errors?: unknown }).errors;
+  const hasErrors = Array.isArray(errors)
+    ? errors.length > 0
+    : Boolean(errors && typeof errors === "object" && Object.keys(errors).length > 0);
+
+  if (hasErrors) {
+    throw new Error(`API_FOOTBALL provider returned errors: ${JSON.stringify(errors)}`);
+  }
+}
+
 export class ApiFootballProvider implements FootballProvider {
   readonly name = ProviderName.API_FOOTBALL;
 
@@ -44,6 +57,7 @@ export class ApiFootballProvider implements FootballProvider {
       headers: { "x-apisports-key": env.API_FOOTBALL_KEY },
       quotaLimit: env.API_FOOTBALL_DAILY_LIMIT
     });
+    assertNoApiFootballErrors(data);
 
     const parsed = apiFootballTeamResponseSchema.safeParse(data);
     if (!parsed.success) {
@@ -64,6 +78,7 @@ export class ApiFootballProvider implements FootballProvider {
       headers: { "x-apisports-key": env.API_FOOTBALL_KEY },
       quotaLimit: env.API_FOOTBALL_DAILY_LIMIT
     });
+    assertNoApiFootballErrors(data);
 
     const parsed = apiFootballFixtureResponseSchema.safeParse(data);
     if (!parsed.success) {
@@ -86,6 +101,7 @@ export class ApiFootballProvider implements FootballProvider {
         headers: { "x-apisports-key": env.API_FOOTBALL_KEY },
         quotaLimit: env.API_FOOTBALL_DAILY_LIMIT
       });
+      assertNoApiFootballErrors(data);
       const parsed = apiFootballSquadResponseSchema.safeParse(data);
       if (parsed.success) squads.push(...parsed.data.response.map((item) => mapApiFootballSquad(item)));
       else await logApp("error", "api-football", "Squad payload validation failed", { providerId: team.providerId, issues: JSON.parse(JSON.stringify(parsed.error.issues)) });
@@ -105,6 +121,7 @@ export class ApiFootballProvider implements FootballProvider {
         headers: { "x-apisports-key": env.API_FOOTBALL_KEY },
         quotaLimit: env.API_FOOTBALL_DAILY_LIMIT
       });
+      assertNoApiFootballErrors(data);
       const parsed = apiFootballPlayersResponseSchema.safeParse(data);
       if (parsed.success) players.push(...parsed.data.response.map((item) => mapApiFootballPlayer(item)));
       else await logApp("error", "api-football", "Players payload validation failed", { providerId: team.providerId, issues: JSON.parse(JSON.stringify(parsed.error.issues)) });
@@ -136,6 +153,7 @@ export class ApiFootballProvider implements FootballProvider {
         headers: { "x-apisports-key": env.API_FOOTBALL_KEY },
         quotaLimit: env.API_FOOTBALL_DAILY_LIMIT
       });
+      assertNoApiFootballErrors(data);
       const parsed = apiFootballTeamStatisticsResponseSchema.safeParse(data);
       if (parsed.success) stats.push(mapApiFootballTeamStatistics(team.providerId, parsed.data));
       else await logApp("error", "api-football", "Team statistics payload validation failed", { providerId: team.providerId, issues: JSON.parse(JSON.stringify(parsed.error.issues)) });
@@ -159,6 +177,7 @@ export class ApiFootballProvider implements FootballProvider {
         headers: { "x-apisports-key": env.API_FOOTBALL_KEY },
         quotaLimit: env.API_FOOTBALL_DAILY_LIMIT
       });
+      assertNoApiFootballErrors(data);
       const parsed = schema.safeParse(data);
       if (parsed.success) rows.push(...mapper(match.providerId, parsed.data));
       else await logApp("error", "api-football", `Fixture ${endpoint} payload validation failed`, { providerId: match.providerId, issues: JSON.parse(JSON.stringify(parsed.error.issues)) });

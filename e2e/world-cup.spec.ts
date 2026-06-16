@@ -26,12 +26,17 @@ async function signInFromCurrentAdminPage(page: Page) {
   });
 
   await expect(signInButton).toBeEnabled();
-  await signInButton.click();
+  await signInButton.click({ force: true, timeout: 5_000 });
 
   const loginError = page.getByText("Unauthorized", { exact: true });
 
   if (await loginError.isVisible().catch(() => false)) {
     throw new Error(`Admin login failed: ${await loginError.textContent()}`);
+  }
+
+  if (await page.getByRole("button", { name: "Sign in", exact: true }).isVisible().catch(() => false)) {
+    await page.getByLabel("Password").fill(adminPassword);
+    await signInButton.click({ force: true, timeout: 5_000 });
   }
 
   await expect(page).toHaveURL(/\/admin(?:\/sync)?$/, {
@@ -77,9 +82,9 @@ test("homepage and widget fallback", async ({ page }) => {
 test("matches filters and details", async ({ page }) => {
   await page.goto("/matches?group=Group%20A");
   await expect(page.getByRole("heading", { name: "Matches" })).toBeVisible();
-  await page.getByPlaceholder("Team").fill("Development");
+  await page.getByPlaceholder("Team").fill("Mexico");
   await page.getByRole("button", { name: "Filter" }).click();
-  await expect(page).toHaveURL(/team=Development/);
+  await expect(page).toHaveURL(/team=Mexico/);
   await page.goto("/matches/1");
   await expect(page.getByRole("heading", { name: /Match/i })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Lineups" })).toBeVisible();

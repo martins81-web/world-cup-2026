@@ -14,6 +14,7 @@ export type MatchFilters = {
 export const matchInclude = {
   homeTeam: true,
   awayTeam: true,
+  stadium: true,
   winnerToMatch: true,
   loserToMatch: true,
   lineups: { include: { team: true, player: true } },

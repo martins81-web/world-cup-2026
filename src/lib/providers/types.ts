@@ -9,6 +9,21 @@ export type ProviderTeam = {
   badgeUrl?: string;
 };
 
+export type ProviderGroup = {
+  name: string;
+  teamProviderIds: string[];
+};
+
+export type ProviderStadium = {
+  providerId: string;
+  name: string;
+  fifaName?: string;
+  city: string;
+  country: string;
+  capacity?: number;
+  region?: string;
+};
+
 export type ProviderMatch = {
   provider: ProviderName;
   providerId: string;
@@ -23,12 +38,16 @@ export type ProviderMatch = {
   status: MatchStatus;
   homeTeam?: ProviderTeam;
   awayTeam?: ProviderTeam;
+  homeSeed?: string;
+  awaySeed?: string;
   homeScore?: number;
   awayScore?: number;
   extraTimeHome?: number;
   extraTimeAway?: number;
   penaltyHome?: number;
   penaltyAway?: number;
+  stadiumProviderId?: string;
+  timeElapsed?: string;
 };
 
 export type ProviderPlayer = {
@@ -105,9 +124,13 @@ export type ProviderTeamStatistic = {
 
 export interface FootballProvider {
   readonly name: ProviderName;
+  readonly source?: string;
+  readonly errors?: string[];
   isConfigured(): boolean;
   getWorldCupTeams(): Promise<ProviderTeam[]>;
   getWorldCupMatches(): Promise<ProviderMatch[]>;
+  getWorldCupGroups?(): Promise<ProviderGroup[]>;
+  getWorldCupStadiums?(): Promise<ProviderStadium[]>;
   getWorldCupSquads?(): Promise<ProviderSquad[]>;
   getWorldCupPlayers?(): Promise<ProviderPlayer[]>;
   getWorldCupLineups?(): Promise<ProviderLineup[]>;

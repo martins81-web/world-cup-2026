@@ -1,7 +1,10 @@
 .next
 node_modules
 coverage
+playwright-report
+test-results
 .env
 .env*.local
 dist
+*.log
 *.tsbuildinfo
