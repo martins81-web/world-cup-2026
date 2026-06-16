@@ -17,7 +17,10 @@ export function NextMatchesWidget({ matches, events = [], title = "Next matches"
           const imageUrl = sportsDbImageUrl(event?.strThumb, event?.strBanner);
           const href = matchStatisticsHref(match);
           return (
-            <article key={match.id} className="grid max-w-full gap-4 overflow-hidden rounded-md border bg-white p-4 sm:grid-cols-[88px_minmax(0,1fr)]">
+            <article
+              key={match.id}
+              className={`max-w-full overflow-hidden rounded-md border bg-white p-4 ${imageUrl ? "grid gap-4 sm:grid-cols-[88px_minmax(0,1fr)]" : ""}`}
+            >
               {imageUrl ? <img className="h-24 w-full rounded object-cover sm:h-20 sm:w-20" src={imageUrl} alt="" loading="lazy" /> : null}
               <div className="min-w-0">
                 <div className="flex flex-wrap items-start justify-between gap-2">
