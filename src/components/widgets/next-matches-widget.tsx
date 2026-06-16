@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { Match, Team } from "@prisma/client";
 import { LocalDateTime } from "@/components/local-date-time";
 import { matchStatisticsHref } from "@/components/match-card";
+import { MatchArtwork } from "@/components/widgets/match-artwork";
 import { findSportsDbEvent, sportsDbImageUrl, type SportsDbEvent } from "@/lib/providers/thesportsdb";
 import { notAvailable, scoreLine } from "@/lib/ui";
 
@@ -17,11 +18,15 @@ export function NextMatchesWidget({ matches, events = [], title = "Next matches"
           const imageUrl = sportsDbImageUrl(event?.strThumb, event?.strBanner);
           const href = matchStatisticsHref(match);
           return (
-            <article
-              key={match.id}
-              className={`max-w-full overflow-hidden rounded-md border bg-white p-4 ${imageUrl ? "grid gap-4 sm:grid-cols-[88px_minmax(0,1fr)]" : ""}`}
-            >
-              {imageUrl ? <img className="h-24 w-full rounded object-cover sm:h-20 sm:w-20" src={imageUrl} alt="" loading="lazy" /> : null}
+            <article key={match.id} className="grid max-w-full gap-4 overflow-hidden rounded-md border bg-white p-4 sm:grid-cols-[128px_minmax(0,1fr)]">
+              <MatchArtwork
+                imageUrl={imageUrl}
+                homeTeam={match.homeTeam}
+                awayTeam={match.awayTeam}
+                homeLabel={match.homeSeed}
+                awayLabel={match.awaySeed}
+                className="h-24 w-full rounded object-cover sm:h-24 sm:w-32"
+              />
               <div className="min-w-0">
                 <div className="flex flex-wrap items-start justify-between gap-2">
                   <h3 className="font-semibold">Match {notAvailable(match.matchNumber)}</h3>

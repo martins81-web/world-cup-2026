@@ -15,6 +15,7 @@ export default async function MatchPage({ params }: { params: Promise<{ id: stri
   if (!match) notFound();
   const sportsDb = await getTheSportsDbEnrichment();
   const sportsDbEvents = [...sportsDb.seasonEvents, ...sportsDb.nextEvents, ...sportsDb.previousEvents];
+  const localStatistics = getLocalMatchStatistics(match);
 
   return (
     <main>
@@ -29,10 +30,14 @@ export default async function MatchPage({ params }: { params: Promise<{ id: stri
         </div>
         <p className="mt-2 text-black/60">{match.stage} {match.groupName ? `- ${match.groupName}` : ""}</p>
         <div className="mt-8 rounded-md border bg-white p-6">
-          <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-4 text-lg">
-            <div>{match.homeTeam?.name ?? match.homeSeed ?? "Not available"}</div>
-            <div className="font-semibold">{scoreLine(match.homeScore, match.awayScore)}</div>
-            <div className="text-right">{match.awayTeam?.name ?? match.awaySeed ?? "Not available"}</div>
+          <div className="space-y-3 text-lg">
+            <div className="flex min-w-0 items-center gap-3">
+              <span className="min-w-0 flex-1 break-words">{match.homeTeam?.name ?? match.homeSeed ?? "Not available"}</span>
+              <span className="shrink-0 rounded bg-black/5 px-3 py-1 font-semibold">{scoreLine(match.homeScore, match.awayScore)}</span>
+            </div>
+            <div className="flex min-w-0 items-center gap-3">
+              <span className="min-w-0 flex-1 break-words">{match.awayTeam?.name ?? match.awaySeed ?? "Not available"}</span>
+            </div>
           </div>
           <dl className="mt-6 grid gap-3 text-sm md:grid-cols-2">
             <div><dt className="font-medium">Kickoff</dt><dd><LocalDateTime value={match.kickoffAt} /></dd></div>
@@ -68,15 +73,44 @@ export default async function MatchPage({ params }: { params: Promise<{ id: stri
         <section id="statistics" className="mt-8 scroll-mt-24">
           <h2 className="text-xl font-semibold">Statistics</h2>
           <div className="mt-3 grid gap-3 md:grid-cols-2">
+            {localStatistics.map((statistic) => (
+              <div key={statistic.label} className="rounded-md border bg-white p-3 text-sm">
+                <div className="text-black/60">{statistic.label}</div>
+                <div className="mt-1 font-semibold">{statistic.value}</div>
+              </div>
+            ))}
             {match.statistics.map((statistic) => (
               <div key={statistic.id} className="rounded-md border bg-white p-3 text-sm">
                 {statistic.team.name} - {statistic.type}: {statistic.value ?? "Not available"}
               </div>
             ))}
           </div>
-          {match.statistics.length === 0 ? <p className="mt-3">Not available</p> : null}
         </section>
       </section>
     </main>
   );
+}
+
+function getLocalMatchStatistics(match: NonNullable<Awaited<ReturnType<typeof getMatchById>>>) {
+  const result = match.status === "FINISHED"
+    ? getResultLabel(match.homeTeam?.name ?? match.homeSeed, match.awayTeam?.name ?? match.awaySeed, match.homeScore, match.awayScore)
+    : "Pending";
+
+  return [
+    { label: "Result", value: result },
+    { label: "Score", value: scoreLine(match.homeScore, match.awayScore) },
+    { label: "Stage", value: match.groupName ? `${match.stage} - ${match.groupName}` : match.stage },
+    { label: "Status", value: match.status },
+    { label: "Kickoff", value: match.kickoffAt.toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" }) },
+    { label: "Venue", value: [match.venue, match.city].filter(Boolean).join(" - ") || "Not available" },
+    { label: "Extra time", value: scoreLine(match.extraTimeHome, match.extraTimeAway) },
+    { label: "Penalties", value: scoreLine(match.penaltyHome, match.penaltyAway) }
+  ];
+}
+
+function getResultLabel(homeName?: string | null, awayName?: string | null, homeScore?: number | null, awayScore?: number | null) {
+  if (homeScore === null || homeScore === undefined || awayScore === null || awayScore === undefined) return "Pending";
+  if (homeScore > awayScore) return `${homeName ?? "Home"} win`;
+  if (awayScore > homeScore) return `${awayName ?? "Away"} win`;
+  return "Draw";
 }

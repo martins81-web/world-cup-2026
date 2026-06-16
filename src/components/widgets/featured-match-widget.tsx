@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { Match, Team } from "@prisma/client";
 import { LocalDateTime } from "@/components/local-date-time";
 import { matchStatisticsHref } from "@/components/match-card";
+import { MatchArtwork } from "@/components/widgets/match-artwork";
 import { findSportsDbEvent, sportsDbImageUrl, type SportsDbEvent } from "@/lib/providers/thesportsdb";
 import { notAvailable, scoreLine } from "@/lib/ui";
 
@@ -23,7 +24,14 @@ export function FeaturedMatchWidget({ match, events = [], title = "Featured matc
 
   return (
     <section className="max-w-full overflow-hidden rounded-md border bg-white" data-testid="featured-match-widget">
-      {imageUrl ? <img className="h-40 w-full object-cover" src={imageUrl} alt="" loading="lazy" /> : null}
+      <MatchArtwork
+        imageUrl={imageUrl}
+        homeTeam={match.homeTeam}
+        awayTeam={match.awayTeam}
+        homeLabel={match.homeSeed}
+        awayLabel={match.awaySeed}
+        className="h-40 w-full object-cover"
+      />
       <div className="p-4">
         <h2 className="text-xl font-semibold">{title}</h2>
         <p className="mt-1 text-sm text-black/60">{match.stage}{match.groupName ? ` - ${match.groupName}` : ""}</p>
