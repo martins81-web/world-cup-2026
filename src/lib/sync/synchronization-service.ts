@@ -256,6 +256,19 @@ async function upsertStadium(stadium: ProviderStadium) {
 }
 
 export async function synchronizeProvider(provider: FootballProvider): Promise<SyncResult> {
+  await prisma.syncRun.updateMany({
+    where: {
+      provider: provider.name,
+      status: "running",
+      startedAt: { lt: new Date(Date.now() - 10 * 60 * 1000) }
+    },
+    data: {
+      status: "failed",
+      finishedAt: new Date(),
+      message: "Marked failed because the sync run did not finish within 10 minutes."
+    }
+  });
+
   if (!provider.isConfigured()) {
     const message = getProviderConfigurationMessage(provider);
     await prisma.syncRun.create({

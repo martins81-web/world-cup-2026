@@ -7,6 +7,7 @@ import { isWithinMontrealResultSyncWindow, montrealSyncWindowLabel } from "@/lib
 import { synchronizeProvider } from "@/lib/sync/synchronization-service";
 
 const intervalMs = Number(process.env.WORLDCUP2026_AUTO_SYNC_INTERVAL_MS ?? 60 * 1000);
+let syncInProgress = false;
 const execFileAsync = promisify(execFile);
 const endpointFiles = [
   ["teams", "hosted.teams.json"],
@@ -21,14 +22,14 @@ async function fetchEndpoint(endpoint: string) {
     const command = [
       "-NoProfile",
       "-Command",
-      `$ProgressPreference='SilentlyContinue'; (Invoke-WebRequest -UseBasicParsing '${url}' -TimeoutSec 30).Content`
+      `$ProgressPreference='SilentlyContinue'; (Invoke-WebRequest -UseBasicParsing '${url}' -TimeoutSec 12).Content`
     ];
-    const { stdout } = await execFileAsync("powershell.exe", command, { timeout: 45_000, maxBuffer: 2 * 1024 * 1024 });
+    const { stdout } = await execFileAsync("powershell.exe", command, { timeout: 18_000, maxBuffer: 2 * 1024 * 1024 });
     return stdout;
   }
 
-  const { stdout } = await execFileAsync("curl", ["-L", "--silent", "--show-error", "--max-time", "30", "--fail", url], {
-    timeout: 45_000,
+  const { stdout } = await execFileAsync("curl", ["-L", "--silent", "--show-error", "--max-time", "12", "--fail", url], {
+    timeout: 18_000,
     maxBuffer: 2 * 1024 * 1024
   });
   return stdout;
@@ -51,6 +52,13 @@ async function refreshHostedCache() {
 }
 
 async function runOnce() {
+  if (syncInProgress) {
+    console.log(`[${new Date().toISOString()}] automatic sync skipped because the previous run is still in progress`);
+    return;
+  }
+
+  syncInProgress = true;
+  try {
   if (!isWithinMontrealResultSyncWindow()) {
     console.log(`[${new Date().toISOString()}] automatic sync skipped outside ${montrealSyncWindowLabel()}`);
     return;
@@ -63,6 +71,9 @@ async function runOnce() {
   const timestamp = new Date().toISOString();
   console.log(`[${timestamp}] ${result.provider} ${result.status}: ${result.matchesSeen} matches via ${result.source ?? "provider"}`);
   if (result.errors?.length) console.log(`[${timestamp}] sync warnings: ${result.errors.join(" | ")}`);
+  } finally {
+    syncInProgress = false;
+  }
 }
 
 async function main() {

@@ -182,15 +182,30 @@ export function loadLocalWorldCup2026Dataset() {
 }
 
 export function loadHostedWorldCup2026Cache() {
+  const data = loadHostedWorldCup2026RawCache();
+
+  return parseWorldCup2026Dataset(data);
+}
+
+function loadHostedWorldCup2026RawCache() {
   const dataDir = path.join(process.cwd(), "data", "worldcup2026");
   const readJson = (fileName: string) => JSON.parse(fs.readFileSync(path.join(dataDir, fileName), "utf8"));
 
-  return parseWorldCup2026Dataset({
+  return {
     teams: readJson("hosted.teams.json"),
     matches: readJson("hosted.games.json"),
     groups: readJson("hosted.groups.json"),
     stadiums: readJson("hosted.stadiums.json")
-  });
+  };
+}
+
+function tryLoadHostedWorldCup2026RawCache(errors: string[]) {
+  try {
+    return loadHostedWorldCup2026RawCache();
+  } catch (error) {
+    errors.push(error instanceof Error ? `Hosted API cache could not be parsed: ${error.message}` : "Hosted API cache could not be parsed.");
+    return null;
+  }
 }
 
 async function fetchJsonWithRetry(url: string, token: string, errors: string[]) {
@@ -214,7 +229,8 @@ async function fetchJsonWithRetry(url: string, token: string, errors: string[]) 
           errors.push(`${url}: ${message}`);
           return null;
         }
-        const fallback = await fetchJsonWithNodeHttpsFallback(url, token)
+        const fallback = await fetchJsonWithPowerShellFallback(url, token)
+          .catch(() => fetchJsonWithNodeHttpsFallback(url, token))
           .catch(() => fetchJsonWithCurlFallback(url, token))
           .catch((fallbackError: unknown) => {
             const fallbackMessage = fallbackError instanceof Error ? fallbackError.message : "Unknown fallback error";
@@ -239,6 +255,21 @@ async function fetchJsonWithCurlFallback(url: string, token: string) {
     timeout: 20_000,
     maxBuffer: 2 * 1024 * 1024
   });
+  return JSON.parse(stdout);
+}
+
+async function fetchJsonWithPowerShellFallback(url: string, token: string) {
+  if (process.platform !== "win32") throw new Error("PowerShell fallback is only available on Windows.");
+  const escapedUrl = url.replace(/'/g, "''");
+  const headerSnippet = token
+    ? ` -Headers @{Authorization='Bearer ${token.replace(/'/g, "''")}'}`
+    : "";
+  const command = [
+    "-NoProfile",
+    "-Command",
+    `$ProgressPreference='SilentlyContinue'; (Invoke-WebRequest -UseBasicParsing '${escapedUrl}'${headerSnippet} -TimeoutSec 15).Content`
+  ];
+  const { stdout } = await execFileAsync("powershell.exe", command, { timeout: 20_000, maxBuffer: 2 * 1024 * 1024 });
   return JSON.parse(stdout);
 }
 
@@ -297,16 +328,24 @@ export class WorldCup2026OpenSourceProvider implements FootballProvider {
     if (!env.WORLDCUP2026_API_ENABLED) return this.dataset;
 
     const baseUrl = env.WORLDCUP2026_API_BASE_URL.replace(/\/$/, "");
-    const teams = await fetchJsonWithRetry(`${baseUrl}/get/teams`, env.WORLDCUP2026_API_TOKEN, this.errors);
-    const groups = await fetchJsonWithRetry(`${baseUrl}/get/groups`, env.WORLDCUP2026_API_TOKEN, this.errors);
-    const matches = await fetchJsonWithRetry(`${baseUrl}/get/games`, env.WORLDCUP2026_API_TOKEN, this.errors);
-    const stadiums = await fetchJsonWithRetry(`${baseUrl}/get/stadiums`, env.WORLDCUP2026_API_TOKEN, this.errors);
+    const hostedCache = tryLoadHostedWorldCup2026RawCache(this.errors);
+    const [teams, groups, matches, stadiums] = await Promise.all([
+      fetchJsonWithRetry(`${baseUrl}/get/teams`, env.WORLDCUP2026_API_TOKEN, this.errors),
+      fetchJsonWithRetry(`${baseUrl}/get/groups`, env.WORLDCUP2026_API_TOKEN, this.errors),
+      fetchJsonWithRetry(`${baseUrl}/get/games`, env.WORLDCUP2026_API_TOKEN, this.errors),
+      fetchJsonWithRetry(`${baseUrl}/get/stadiums`, env.WORLDCUP2026_API_TOKEN, this.errors)
+    ]);
 
-    if (teams && groups && matches && stadiums) {
+    if (teams || groups || matches || stadiums || hostedCache) {
       try {
-        const hosted = parseWorldCup2026Dataset({ teams, groups, matches, stadiums });
+        const hosted = parseWorldCup2026Dataset({
+          teams: teams ?? hostedCache?.teams ?? teamsJson,
+          groups: groups ?? hostedCache?.groups ?? matchTablesJson,
+          matches: matches ?? hostedCache?.matches ?? matchesJson,
+          stadiums: stadiums ?? hostedCache?.stadiums ?? stadiumsJson
+        });
         if (hosted.teams.length > 0 && hosted.matches.length > 0) {
-          this.source = "hosted API";
+          this.source = matches ? "hosted API partial" : "hosted API cache";
           this.dataset = hosted;
         }
       } catch (error) {
@@ -314,19 +353,7 @@ export class WorldCup2026OpenSourceProvider implements FootballProvider {
       }
     }
 
-    if (this.source !== "hosted API") {
-      try {
-        const hostedCache = loadHostedWorldCup2026Cache();
-        if (hostedCache.teams.length > 0 && hostedCache.matches.length > 0) {
-          this.source = "hosted API cache";
-          this.dataset = hostedCache;
-        }
-      } catch (error) {
-        this.errors.push(error instanceof Error ? error.message : "Hosted API cache could not be parsed.");
-      }
-    }
-
-    if (!["hosted API", "hosted API cache"].includes(this.source) && this.errors.length > 0) this.source = "local dataset fallback";
+    if (!["hosted API partial", "hosted API cache"].includes(this.source) && this.errors.length > 0) this.source = "local dataset fallback";
     return this.dataset;
   }
 
