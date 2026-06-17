@@ -3,7 +3,7 @@ import type { Match, Team } from "@prisma/client";
 import { LocalDateTime } from "@/components/local-date-time";
 import { matchStatisticsHref } from "@/components/match-card";
 import { MatchArtwork } from "@/components/widgets/match-artwork";
-import { findSportsDbEvent, sportsDbImageUrl, type SportsDbEvent } from "@/lib/providers/thesportsdb";
+import { findSportsDbEvent, matchArtworkImageUrl, type SportsDbEvent } from "@/lib/providers/thesportsdb";
 import { notAvailable, scoreLine } from "@/lib/ui";
 
 type MatchWithTeams = Match & { homeTeam?: Team | null; awayTeam?: Team | null };
@@ -15,17 +15,17 @@ export function NextMatchesWidget({ matches, events = [], title = "Next matches"
       <div className="mt-4 grid gap-4">
         {matches.map((match) => {
           const event = findSportsDbEvent(match, events);
-          const imageUrl = sportsDbImageUrl(event?.strThumb, event?.strBanner);
+          const imageUrl = matchArtworkImageUrl(match, event);
           const href = matchStatisticsHref(match);
           return (
-            <article key={match.id} className="grid max-w-full gap-4 overflow-hidden rounded-md border bg-white p-4 sm:grid-cols-[128px_minmax(0,1fr)]">
+            <article key={match.id} className="grid max-w-full gap-4 overflow-hidden rounded-md border bg-white p-4 sm:grid-cols-[160px_minmax(0,1fr)]">
               <MatchArtwork
                 imageUrl={imageUrl}
                 homeTeam={match.homeTeam}
                 awayTeam={match.awayTeam}
                 homeLabel={match.homeSeed}
                 awayLabel={match.awaySeed}
-                className="h-24 w-full rounded object-cover sm:h-24 sm:w-32"
+                className="aspect-[16/9] w-full rounded sm:w-40"
               />
               <div className="min-w-0">
                 <div className="flex flex-wrap items-start justify-between gap-2">

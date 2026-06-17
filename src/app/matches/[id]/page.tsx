@@ -3,8 +3,9 @@ import { DevelopmentNotice } from "@/components/development-notice";
 import { LocalDateTime } from "@/components/local-date-time";
 import { ApiSportsGameWidget } from "@/components/widgets/api-sports-game-widget";
 import { FeaturedMatchWidget } from "@/components/widgets/featured-match-widget";
+import { LocalMatchCentreWidget } from "@/components/widgets/local-match-centre-widget";
 import { getMatchById, getTournament } from "@/lib/data/world-cup";
-import { findSportsDbEvent, getTheSportsDbEnrichment, TheSportsDbProvider } from "@/lib/providers/thesportsdb";
+import { findSportsDbEvent, getTheSportsDbEnrichment, getTheSportsDbEventsForMatches, TheSportsDbProvider } from "@/lib/providers/thesportsdb";
 import { notAvailable, scoreLine } from "@/lib/ui";
 
 export const dynamic = "force-dynamic";
@@ -14,7 +15,10 @@ export default async function MatchPage({ params }: { params: Promise<{ id: stri
   const [tournament, match] = await Promise.all([getTournament(), getMatchById(id)]);
   if (!match) notFound();
   const sportsDb = await getTheSportsDbEnrichment();
-  const sportsDbEvents = [...sportsDb.seasonEvents, ...sportsDb.nextEvents, ...sportsDb.previousEvents];
+  const sportsDbEvents = await getTheSportsDbEventsForMatches(
+    [match],
+    [...sportsDb.seasonEvents, ...sportsDb.nextEvents, ...sportsDb.previousEvents]
+  );
   const sportsDbEvent = findSportsDbEvent(match, sportsDbEvents);
   const sportsDbStatistics = sportsDbEvent
     ? await new TheSportsDbProvider().getEventStatistics(sportsDbEvent.idEvent)
@@ -27,10 +31,16 @@ export default async function MatchPage({ params }: { params: Promise<{ id: stri
       <section className="mx-auto max-w-3xl px-6 py-8">
         <h1 className="text-3xl font-semibold">Match {notAvailable(match.matchNumber)}</h1>
         <div className="mt-5">
-          <h2 className="text-2xl font-semibold">Live widgets powered by API-Sports</h2>
-          <div className="mt-4">
-            <ApiSportsGameWidget fixture={match.sourceProvider === "API_FOOTBALL" ? match.providerId : null} title="API-Sports fixture statistics" />
-          </div>
+          {match.sourceProvider === "API_FOOTBALL" && match.providerId ? (
+            <>
+              <h2 className="text-2xl font-semibold">Live widgets powered by API-Sports</h2>
+              <div className="mt-4">
+                <ApiSportsGameWidget fixture={match.providerId} title="API-Sports fixture statistics" />
+              </div>
+            </>
+          ) : (
+            <LocalMatchCentreWidget match={match} />
+          )}
         </div>
         <div className="mt-6">
           <FeaturedMatchWidget match={match} events={sportsDbEvents} title="TheSportsDB artwork" />
@@ -55,7 +65,7 @@ export default async function MatchPage({ params }: { params: Promise<{ id: stri
             <div><dt className="font-medium">Penalties</dt><dd>{scoreLine(match.penaltyHome, match.penaltyAway)}</dd></div>
           </dl>
         </div>
-        <section className="mt-8">
+        <section id="lineups" className="mt-8 scroll-mt-24">
           <h2 className="text-xl font-semibold">Lineups</h2>
           <div className="mt-3 grid gap-3 md:grid-cols-2">
             {match.lineups.map((lineup) => (
@@ -66,7 +76,7 @@ export default async function MatchPage({ params }: { params: Promise<{ id: stri
           </div>
           {match.lineups.length === 0 ? <p className="mt-3">Not available</p> : null}
         </section>
-        <section className="mt-8">
+        <section id="events" className="mt-8 scroll-mt-24">
           <h2 className="text-xl font-semibold">Events</h2>
           <div className="mt-3 space-y-2">
             {match.events.map((event) => (

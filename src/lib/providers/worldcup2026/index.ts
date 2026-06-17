@@ -106,6 +106,14 @@ function groupName(group: string) {
   return /^[A-L]$/.test(group) ? `Group ${group}` : undefined;
 }
 
+function normalizeCompetitionTeamName(name: string) {
+  return normalizeTeamName(name).replace(/Democratic Republic of the Congo/g, "DR Congo");
+}
+
+function normalizeTeamName(name: string) {
+  return name.replace(/Cura(?:çao|Ã§ao|�ao|\?ao)/g, "Curaçao");
+}
+
 export function parseWorldCup2026Dataset(input: {
   teams: unknown;
   matches: unknown;
@@ -115,8 +123,8 @@ export function parseWorldCup2026Dataset(input: {
   const teams = teamArraySchema.parse(unwrapHostedArray(input.teams, "teams")).map((team) => ({
     provider: ProviderName.WORLDCUP2026_OPEN_SOURCE,
     providerId: team.id,
-    name: team.name_en,
-    country: team.name_en,
+    name: normalizeCompetitionTeamName(team.name_en),
+    country: normalizeCompetitionTeamName(team.name_en),
     fifaCode: team.fifa_code,
     badgeUrl: team.flag
   }));

@@ -68,7 +68,7 @@ describe("tournament engine", () => {
     expect(ranking[8]).toMatchObject({ rank: 9, qualified: false });
   });
 
-  it("does not rank third-place teams from groups with no completed matches", () => {
+  it("keeps one third-place team from every group, including unplayed groups", () => {
     const tables = [{
       groupName: "Group A",
       rows: [
@@ -89,10 +89,16 @@ describe("tournament engine", () => {
 
     const ranking = rankThirdPlaceTeams(tables);
 
-    expect(ranking).toHaveLength(1);
+    expect(ranking).toHaveLength(2);
     expect(ranking[0]).toMatchObject({
       teamName: "Real Third",
+      groupName: "Group B",
       qualificationStatus: "PROVISIONAL"
+    });
+    expect(ranking[1]).toMatchObject({
+      teamName: "Gamma",
+      groupName: "Group A",
+      qualificationStatus: "PENDING"
     });
   });
 
@@ -161,6 +167,7 @@ function row(teamId: string, teamName: string, points: number, played = 3) {
   return {
     teamId,
     teamName,
+    badgeUrl: null,
     played,
     won: 0,
     drawn: 0,

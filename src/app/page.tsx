@@ -8,7 +8,7 @@ import { NextMatchesWidget } from "@/components/widgets/next-matches-widget";
 import { RecentResultsWidget } from "@/components/widgets/recent-results-widget";
 import { TeamShowcaseWidget } from "@/components/widgets/team-showcase-widget";
 import { getBracket, getGroupsWithTables, getMatches, getTeams, getThirdPlaceRanking, getTournament } from "@/lib/data/world-cup";
-import { getTheSportsDbEnrichment } from "@/lib/providers/thesportsdb";
+import { getTheSportsDbEnrichment, getTheSportsDbEventsForMatches } from "@/lib/providers/thesportsdb";
 import { getFeaturedMatch, getGroupPreview, getRecentResults, getTeamShowcase, getUpcomingMatches } from "@/lib/tournament/upcoming";
 
 export const dynamic = "force-dynamic";
@@ -21,12 +21,15 @@ export default async function HomePage() {
   const { ranking } = await getThirdPlaceRanking();
   const { matches: bracketMatches } = await getBracket();
   const sportsDb = await getTheSportsDbEnrichment();
-  const sportsDbEvents = [...sportsDb.seasonEvents, ...sportsDb.nextEvents, ...sportsDb.previousEvents];
   const featuredMatch = getFeaturedMatch(matches);
   const upcomingMatches = getUpcomingMatches(matches, 6);
   const recentMatches = getRecentResults(matches, 4);
   const showcaseTeams = getTeamShowcase(teams, 4);
   const previewGroups = getGroupPreview(tables, 6);
+  const sportsDbEvents = await getTheSportsDbEventsForMatches(
+    [featuredMatch, ...upcomingMatches, ...recentMatches, ...bracketMatches.slice(0, 4)].filter(Boolean),
+    [...sportsDb.seasonEvents, ...sportsDb.nextEvents, ...sportsDb.previousEvents]
+  );
 
   return (
     <main>
@@ -75,8 +78,8 @@ export default async function HomePage() {
           <section>
             <h2 className="text-2xl font-semibold">Third-place Cut Line</h2>
             <div className="mt-4 space-y-2">
-              {ranking.slice(0, 8).map((row) => (
-                <div key={row.teamId} className="rounded-md border bg-white p-3 text-sm">#{row.rank} {row.teamName} - {row.points} pts - {row.qualificationStatus === "PROVISIONAL" ? "Provisional" : "Pending"}</div>
+              {ranking.map((row) => (
+                <div key={row.teamId} className="rounded-md border bg-white p-3 text-sm">#{row.rank} {row.groupName} - {row.teamName} - {row.points} pts - {row.qualificationStatus === "PROVISIONAL" ? "Provisional" : "Pending"}</div>
               ))}
               {ranking.length === 0 ? <div className="rounded-md border bg-white p-3 text-sm text-black/60">Third-place ranking will appear after group matches are played.</div> : null}
             </div>

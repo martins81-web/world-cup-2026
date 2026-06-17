@@ -3,7 +3,7 @@ import { MatchStatus, type Match, type Team } from "@prisma/client";
 import { LocalDateTime } from "@/components/local-date-time";
 import { matchStatisticsHref } from "@/components/match-card";
 import { MatchArtwork } from "@/components/widgets/match-artwork";
-import { findSportsDbEvent, sportsDbImageUrl, type SportsDbEvent } from "@/lib/providers/thesportsdb";
+import { findSportsDbEvent, matchArtworkImageUrl, type SportsDbEvent } from "@/lib/providers/thesportsdb";
 import { scoreLine } from "@/lib/ui";
 
 type MatchWithTeams = Match & { homeTeam?: Team | null; awayTeam?: Team | null };
@@ -20,7 +20,7 @@ export function RecentResultsWidget({ matches, events = [], title = "Recent resu
       <div className="mt-4 space-y-3">
         {finishedMatches.map((match) => {
           const event = findSportsDbEvent(match, events);
-          const imageUrl = sportsDbImageUrl(event?.strThumb, event?.strBanner);
+          const imageUrl = matchArtworkImageUrl(match, event);
           const href = matchStatisticsHref(match);
           return (
             <article key={match.id} className="flex min-w-0 gap-3 rounded-md border bg-white p-3 text-sm">
@@ -30,7 +30,7 @@ export function RecentResultsWidget({ matches, events = [], title = "Recent resu
                 awayTeam={match.awayTeam}
                 homeLabel={match.homeSeed}
                 awayLabel={match.awaySeed}
-                className="h-16 w-24 flex-none rounded object-cover"
+                className="aspect-[16/9] w-32 flex-none rounded"
               />
               <div className="min-w-0 flex-1">
                 <div className="space-y-2">

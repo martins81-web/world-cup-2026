@@ -18,6 +18,8 @@
     "prisma:seed": "tsx prisma/seed.ts",
     "sync": "tsx scripts/sync.ts",
     "sync:auto": "tsx scripts/auto-sync.ts",
+    "artwork:warm": "tsx scripts/warm-thesportsdb-artwork.ts",
+    "artwork:backfill": "tsx scripts/backfill-match-artwork.ts",
     "smoke": "tsx scripts/smoke-test.ts",
     "smoke-test": "tsx scripts/smoke-test.ts"
   },

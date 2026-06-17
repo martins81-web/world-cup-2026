@@ -63,6 +63,7 @@ type SportsDbListResponse = {
   leagues?: unknown[];
   teams?: SportsDbTeam[] | null;
   events?: SportsDbEvent[] | null;
+  event?: SportsDbEvent[] | null;
   eventstats?: SportsDbEventStatistic[] | null;
   stats?: SportsDbEventStatistic[] | null;
 };
@@ -173,6 +174,24 @@ export class TheSportsDbProvider implements FootballProvider {
     return result.data?.eventstats ?? result.data?.stats ?? [];
   }
 
+  async searchEvent(homeTeam: string, awayTeam: string) {
+    if (!this.isConfigured()) return [];
+    const candidates = eventSearchCandidates(homeTeam, awayTeam);
+    const fallbackEvents: SportsDbEvent[] = [];
+
+    for (const eventName of candidates) {
+      const result = await this.readEndpoint<SportsDbListResponse>(
+        `search-event:${eventName}`,
+        `searchevents.php?e=${encodeURIComponent(eventName)}&s=${encodeURIComponent(env.THESPORTSDB_SEASON)}`
+      );
+      const events = normalizeEventList(result.data?.event ?? result.data?.events);
+      if (events.some(hasSportsDbArtwork)) return events;
+      fallbackEvents.push(...events);
+    }
+
+    return fallbackEvents;
+  }
+
   async getTeamDetails(teamId: string) {
     const result = await this.readEndpoint<SportsDbListResponse>(`team:${teamId}`, `lookupteam.php?id=${encodeURIComponent(teamId)}`);
     return result.data?.teams?.[0];
@@ -196,6 +215,61 @@ export class TheSportsDbProvider implements FootballProvider {
 
 export async function getTheSportsDbEnrichment() {
   return new TheSportsDbProvider().getEnrichment();
+}
+
+export async function getTheSportsDbEventsForMatches(
+  matches: Array<{
+    kickoffAt?: Date | string | null;
+    artworkUrl?: string | null;
+    thumbnailUrl?: string | null;
+    bannerUrl?: string | null;
+    posterUrl?: string | null;
+    fanartUrl?: string | null;
+    homeTeam?: { name: string; sportsDbId?: string | null } | null;
+    awayTeam?: { name: string; sportsDbId?: string | null } | null;
+  }>,
+  baseEvents: SportsDbEvent[] = []
+) {
+  const provider = new TheSportsDbProvider();
+  if (!provider.isConfigured()) return uniqueEvents(baseEvents);
+
+  const events = [...baseEvents];
+  const missingMatches = matches.filter((match) =>
+    !matchArtworkImageUrl(match) &&
+    match.homeTeam?.name &&
+    match.awayTeam?.name &&
+    !findSportsDbEvent(match, events)
+  );
+
+  for (const match of missingMatches) {
+    const found = await provider.searchEvent(match.homeTeam?.name ?? "", match.awayTeam?.name ?? "");
+    events.push(...found);
+  }
+
+  return uniqueEvents(events);
+}
+
+export function matchArtworkImageUrl(
+  match: {
+    artworkUrl?: string | null;
+    thumbnailUrl?: string | null;
+    bannerUrl?: string | null;
+    posterUrl?: string | null;
+    fanartUrl?: string | null;
+  },
+  event?: SportsDbEvent
+) {
+  return sportsDbImageUrl(
+    match.artworkUrl,
+    match.thumbnailUrl,
+    match.bannerUrl,
+    match.posterUrl,
+    match.fanartUrl,
+    event?.strThumb,
+    event?.strBanner,
+    event?.strPoster,
+    event?.strFanart
+  );
 }
 
 export function findSportsDbTeam(localTeam: { name: string; fifaCode?: string | null; sportsDbId?: string | null }, teams: SportsDbTeam[]) {
@@ -237,6 +311,7 @@ export function findSportsDbEvent(
 export function sportsDbImageUrl(...candidates: Array<string | null | undefined>) {
   const imageUrl = candidates.find((candidate) => typeof candidate === "string" && /^https?:\/\//i.test(candidate));
   if (!imageUrl) return undefined;
+  if (!/\/\/(?:www\.)?thesportsdb\.com\//i.test(imageUrl)) return imageUrl;
   if (/\/(tiny|small|medium)$/i.test(imageUrl)) return imageUrl;
   return `${imageUrl}/small`;
 }
@@ -246,10 +321,15 @@ export function normalizeSportsDbName(value: string) {
     .toLowerCase()
     .normalize("NFKD")
     .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim()
+    .replace(/\b(democratic republic of the congo|dr congo|congo dr|congo kinshasa)\b/g, "dr congo")
+    .replace(/\b(bosnia and herzegovina|bosnia herzegovina|bosnia)\b/g, "bosnia")
+    .replace(/\b(cura ao|curacao)\b/g, "curacao")
+    .replace(/\b(cote d ivoire|ivory coast)\b/g, "ivory coast")
     .replace(/\b(united states|usa|usmnt)\b/g, "united states")
     .replace(/\b(korea republic|south korea)\b/g, "south korea")
     .replace(/\b(ir iran|iran)\b/g, "iran")
-    .replace(/[^a-z0-9]+/g, " ")
     .trim();
 }
 
@@ -257,6 +337,49 @@ function toDateKey(value?: Date | string | null) {
   if (!value) return "";
   const date = value instanceof Date ? value : new Date(value);
   return Number.isNaN(date.getTime()) ? "" : date.toISOString().slice(0, 10);
+}
+
+function toSearchToken(value: string) {
+  return value
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^A-Za-z0-9-]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+}
+
+function eventSearchCandidates(homeTeam: string, awayTeam: string) {
+  const homeTokens = teamSearchTokens(homeTeam);
+  const awayTokens = teamSearchTokens(awayTeam);
+  const candidates: string[] = [];
+
+  for (const home of homeTokens) {
+    for (const away of awayTokens) {
+      candidates.push(`${home}_vs_${away}`);
+    }
+  }
+
+  return [...new Set(candidates)];
+}
+
+function teamSearchTokens(value: string) {
+  const aliases: Record<string, string[]> = {
+    bosnia: ["Bosnia", "Bosnia Herzegovina", "Bosnia-Herzegovina"],
+    curacao: ["Curacao", "Curaçao"],
+    "dr congo": ["DR Congo", "Congo DR", "Congo"],
+    "ivory coast": ["Cote d Ivoire"],
+    "south korea": ["Korea Republic"],
+    "united states": ["USA", "United States"]
+  };
+  return [value, ...(aliases[normalizeSportsDbName(value)] ?? [])].map(toSearchToken);
+}
+
+function normalizeEventList(value?: SportsDbEvent[] | SportsDbEvent | null) {
+  if (!value) return [];
+  return (Array.isArray(value) ? value : [value]).filter(Boolean);
+}
+
+function hasSportsDbArtwork(event: SportsDbEvent) {
+  return Boolean(sportsDbImageUrl(event.strThumb, event.strBanner, event.strPoster, event.strFanart));
 }
 
 function uniqueEvents(events: SportsDbEvent[]) {

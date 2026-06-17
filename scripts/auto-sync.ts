@@ -6,7 +6,7 @@ import { WorldCup2026OpenSourceProvider } from "@/lib/providers/worldcup2026";
 import { isWithinMontrealResultSyncWindow, montrealSyncWindowLabel } from "@/lib/sync/schedule";
 import { synchronizeProvider } from "@/lib/sync/synchronization-service";
 
-const intervalMs = Number(process.env.WORLDCUP2026_AUTO_SYNC_INTERVAL_MS ?? 5 * 60 * 1000);
+const intervalMs = Number(process.env.WORLDCUP2026_AUTO_SYNC_INTERVAL_MS ?? 60 * 1000);
 const execFileAsync = promisify(execFile);
 const endpointFiles = [
   ["teams", "hosted.teams.json"],

@@ -5,7 +5,7 @@ import { MatchFilters } from "@/components/match-filters";
 import { NextMatchesWidget } from "@/components/widgets/next-matches-widget";
 import { RecentResultsWidget } from "@/components/widgets/recent-results-widget";
 import { getMatches, getTournament } from "@/lib/data/world-cup";
-import { getTheSportsDbEnrichment } from "@/lib/providers/thesportsdb";
+import { getTheSportsDbEnrichment, getTheSportsDbEventsForMatches } from "@/lib/providers/thesportsdb";
 import { getRecentResults, getUpcomingMatches } from "@/lib/tournament/upcoming";
 
 export const dynamic = "force-dynamic";
@@ -17,9 +17,12 @@ export default async function MatchesPage({ searchParams }: { searchParams: Prom
   const matches = await getMatches(filters);
   const allMatches = await getMatches();
   const sportsDb = await getTheSportsDbEnrichment();
-  const sportsDbEvents = [...sportsDb.seasonEvents, ...sportsDb.nextEvents, ...sportsDb.previousEvents];
   const upcomingMatches = getUpcomingMatches(allMatches, 6);
   const recentMatches = getRecentResults(allMatches, 4);
+  const sportsDbEvents = await getTheSportsDbEventsForMatches(
+    [...upcomingMatches, ...recentMatches, ...matches],
+    [...sportsDb.seasonEvents, ...sportsDb.nextEvents, ...sportsDb.previousEvents]
+  );
 
   return (
     <main>

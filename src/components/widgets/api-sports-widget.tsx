@@ -2,7 +2,7 @@
 
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { API_SPORTS_WIDGET_FALLBACK, isApiSportsWidgetAvailable, type ApiSportsWidgetTheme } from "@/lib/api-sports-widgets";
-import { API_SPORTS_WIDGET_SCRIPT_SELECTOR, API_SPORTS_WIDGET_SCRIPT_SRC, buildApiSportsDataAttributes } from "@/lib/api-sports-widget-attributes";
+import { API_SPORTS_WIDGET_CLASS_NAME, API_SPORTS_WIDGET_SCRIPT_SELECTOR, API_SPORTS_WIDGET_SCRIPT_SRC, apiSportsWidgetElementId, buildApiSportsDataAttributes } from "@/lib/api-sports-widget-attributes";
 
 declare global {
   interface Window {
@@ -52,7 +52,7 @@ export function ApiSportsWidget({
   const [status, setStatus] = useState<"disabled" | "loading" | "ready" | "empty" | "failed">(
     isApiSportsWidgetAvailable({ enabled, widgetKey }) ? "loading" : "disabled"
   );
-  const widgetId = useMemo(() => `api-sports-${type}-${reactId.replace(/:/g, "")}`, [reactId, type]);
+  const widgetId = useMemo(() => apiSportsWidgetElementId(type, reactId.replace(/:/g, "")), [reactId, type]);
 
   useEffect(() => {
     if (!isApiSportsWidgetAvailable({ enabled, widgetKey })) {
@@ -108,7 +108,7 @@ export function ApiSportsWidget({
       <div
         id={widgetId}
         ref={containerRef}
-        className="mt-3 min-h-24 max-w-full overflow-x-auto"
+        className={`${API_SPORTS_WIDGET_CLASS_NAME} mt-3 min-h-24 max-w-full overflow-x-auto`}
         {...dataAttributes}
       />
       <noscript>{fallback ?? API_SPORTS_WIDGET_FALLBACK}</noscript>

@@ -82,6 +82,28 @@ describe("TheSportsDB enrichment provider", () => {
       { idStatistic: "1", idEvent: "1032723", strStat: "Shots", intHome: "12", intAway: "8" }
     ]);
   });
+
+  it("searches alternate TheSportsDB event names for artwork", async () => {
+    const { TheSportsDbProvider } = await loadProvider({ THESPORTSDB_ENABLED: "true", THESPORTSDB_KEY: "123" });
+    const requestedUrls: string[] = [];
+    const provider = new TheSportsDbProvider(async ({ url }) => {
+      requestedUrls.push(url);
+      if (url.includes("Portugal_vs_DR_Congo")) {
+        return {
+          event: [
+            { idEvent: "2461108", strHomeTeam: "Portugal", strAwayTeam: "DR Congo", strThumb: "https://r2.thesportsdb.com/images/media/event/thumb/example.jpg" }
+          ]
+        } as any;
+      }
+      return { event: null } as any;
+    });
+
+    const events = await provider.searchEvent("Portugal", "Democratic Republic of the Congo");
+
+    expect(requestedUrls.some((url) => url.includes("Portugal_vs_Democratic_Republic_of_the_Congo"))).toBe(true);
+    expect(requestedUrls.some((url) => url.includes("Portugal_vs_DR_Congo"))).toBe(true);
+    expect(events[0]?.idEvent).toBe("2461108");
+  });
 });
 
 describe("TheSportsDB widget enrichment matching", () => {
@@ -103,8 +125,9 @@ describe("TheSportsDB widget enrichment matching", () => {
 
     expect(matchedEvent?.idEvent).toBe("event-1");
     expect(matchedTeam?.idTeam).toBe("1");
-    expect(sportsDbImageUrl(matchedEvent?.strThumb)).toBe("https://cdn.example/match.jpg/small");
-    expect(sportsDbImageUrl(matchedTeam?.strTeamBadge)).toBe("https://cdn.example/mexico.png/small");
+    expect(sportsDbImageUrl(matchedEvent?.strThumb)).toBe("https://cdn.example/match.jpg");
+    expect(sportsDbImageUrl(matchedTeam?.strTeamBadge)).toBe("https://cdn.example/mexico.png");
+    expect(sportsDbImageUrl("https://flagcdn.com/w80/mx.png")).toBe("https://flagcdn.com/w80/mx.png");
   });
 });
 

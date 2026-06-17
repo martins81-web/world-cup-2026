@@ -1,7 +1,7 @@
 import { DevelopmentNotice } from "@/components/development-notice";
 import { MatchCard } from "@/components/match-card";
 import { getBracket } from "@/lib/data/world-cup";
-import { getTheSportsDbEnrichment } from "@/lib/providers/thesportsdb";
+import { getTheSportsDbEnrichment, getTheSportsDbEventsForMatches } from "@/lib/providers/thesportsdb";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Bracket | World Cup 2026" };
@@ -9,20 +9,24 @@ export const metadata = { title: "Bracket | World Cup 2026" };
 export default async function BracketPage() {
   const { tournament, rounds } = await getBracket();
   const sportsDb = await getTheSportsDbEnrichment();
-  const sportsDbEvents = [...sportsDb.seasonEvents, ...sportsDb.nextEvents, ...sportsDb.previousEvents];
   const roundNames = Object.keys(rounds);
+  const bracketMatches = roundNames.flatMap((round) => rounds[round]);
+  const sportsDbEvents = await getTheSportsDbEventsForMatches(
+    bracketMatches,
+    [...sportsDb.seasonEvents, ...sportsDb.nextEvents, ...sportsDb.previousEvents]
+  );
   return (
     <main>
       <DevelopmentNotice active={tournament?.isSeedData} />
       <section className="px-6 py-8">
         <h1 className="text-3xl font-semibold">Bracket</h1>
-        <div className="mt-6 overflow-x-auto pb-4">
-          <div className="grid min-w-[1120px] auto-cols-fr grid-flow-col gap-4">
+        <div className="mt-6 max-w-full overflow-x-auto pb-4">
+          <div className="grid min-w-[1280px] auto-cols-[240px] grid-flow-col gap-4">
           {roundNames.map((round) => (
-            <section key={round} className="min-w-64 rounded-md border border-black/10 bg-black/[0.02] p-3">
+            <section key={round} className="w-60 rounded-md border border-black/10 bg-black/[0.02] p-3">
               <h2 className="sticky top-0 mb-3 bg-[#f6f7f2] py-2 font-semibold">{round}</h2>
               <div className="flex min-h-full flex-col justify-around gap-4">
-                {rounds[round].map((match) => <MatchCard key={match.id} match={match} events={sportsDbEvents} />)}
+                {rounds[round].map((match) => <MatchCard key={match.id} match={match} events={sportsDbEvents} compact />)}
               </div>
             </section>
           ))}

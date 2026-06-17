@@ -6,6 +6,7 @@ type MatchWithTeams = Match & { homeTeam?: Team | null; awayTeam?: Team | null }
 export type GroupTableRow = {
   teamId: string;
   teamName: string;
+  badgeUrl: string | null;
   played: number;
   won: number;
   drawn: number;
@@ -28,6 +29,7 @@ export function calculateGroupTables(groups: GroupWithTeams[], matches: MatchWit
       rows.set(entry.teamId, {
         teamId: entry.teamId,
         teamName: entry.team.name,
+        badgeUrl: entry.team.badgeUrl,
         played: 0,
         won: 0,
         drawn: 0,
@@ -95,19 +97,23 @@ export function calculateKnockoutWinner(match: Pick<Match, "homeTeamId" | "awayT
 
 export function rankThirdPlaceTeams(tables: GroupTable[]) {
   return tables
-    .map((table) => table.rows[2])
-    .filter((row): row is GroupTableRow => Boolean(row) && row.played > 0)
+    .map((table) => {
+      const row = table.rows[2];
+      return row ? { ...row, groupName: table.groupName } : null;
+    })
+    .filter((row): row is GroupTableRow & { groupName: string } => Boolean(row))
     .sort((a, b) =>
       b.points - a.points ||
       b.goalDifference - a.goalDifference ||
       b.goalsFor - a.goalsFor ||
+      a.groupName.localeCompare(b.groupName) ||
       a.teamName.localeCompare(b.teamName)
     )
     .map((row, index) => ({
       ...row,
       rank: index + 1,
       qualified: index < 8,
-      qualificationStatus: index < 8 ? "PROVISIONAL" : "PENDING"
+      qualificationStatus: row.played > 0 && index < 8 ? "PROVISIONAL" : "PENDING"
     }));
 }
 

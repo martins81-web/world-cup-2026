@@ -3,7 +3,7 @@ import type { Match, Team } from "@prisma/client";
 import { LocalDateTime } from "@/components/local-date-time";
 import { matchStatisticsHref } from "@/components/match-card";
 import { MatchArtwork } from "@/components/widgets/match-artwork";
-import { findSportsDbEvent, sportsDbImageUrl, type SportsDbEvent } from "@/lib/providers/thesportsdb";
+import { findSportsDbEvent, matchArtworkImageUrl, type SportsDbEvent } from "@/lib/providers/thesportsdb";
 import { notAvailable, scoreLine } from "@/lib/ui";
 
 type MatchWithTeams = Match & { homeTeam?: Team | null; awayTeam?: Team | null };
@@ -19,7 +19,7 @@ export function FeaturedMatchWidget({ match, events = [], title = "Featured matc
   }
 
   const event = findSportsDbEvent(match, events);
-  const imageUrl = sportsDbImageUrl(event?.strThumb, event?.strBanner, event?.strPoster, event?.strFanart);
+  const imageUrl = matchArtworkImageUrl(match, event);
   const href = matchStatisticsHref(match);
 
   return (
@@ -30,7 +30,7 @@ export function FeaturedMatchWidget({ match, events = [], title = "Featured matc
         awayTeam={match.awayTeam}
         homeLabel={match.homeSeed}
         awayLabel={match.awaySeed}
-        className="h-40 w-full object-cover"
+        className="aspect-[16/7] w-full"
       />
       <div className="p-4">
         <h2 className="text-xl font-semibold">{title}</h2>

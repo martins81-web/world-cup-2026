@@ -38,7 +38,7 @@ npm run sync:auto
 
 Or visit `/admin/sync`, enter `ADMIN_SYNC_TOKEN`, and run synchronization from the admin page.
 
-Vercel cron calls `/api/admin/sync` every 5 minutes for hosted score updates. The route only syncs between 12:00 PM and 2:00 AM Montreal time. External API responses are cached in PostgreSQL via `ExternalApiCache`. API-Football request usage is tracked daily in `ApiQuotaUsage`. Admin sync requires `ADMIN_SYNC_TOKEN` and is rate limited.
+Vercel cron calls `/api/admin/sync` for hosted score updates; local auto-sync defaults to every 1 minute via `WORLDCUP2026_AUTO_SYNC_INTERVAL_MS`. The route only syncs between 12:00 PM and 2:00 AM Montreal time. External API responses are cached in PostgreSQL via `ExternalApiCache`. API-Football request usage is tracked daily in `ApiQuotaUsage`. Admin sync requires `ADMIN_SYNC_TOKEN` and is rate limited.
 
 ## Tests
 

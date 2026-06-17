@@ -137,6 +137,12 @@ model Match {
   extraTimeAway  Int?
   penaltyHome    Int?
   penaltyAway    Int?
+  sportsDbEventId String?      @unique
+  artworkUrl     String?
+  thumbnailUrl   String?
+  bannerUrl      String?
+  posterUrl      String?
+  fanartUrl      String?
   winnerToMatchId String?
   winnerToSlot    String?
   loserToMatchId  String?

@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { API_SPORTS_WIDGET_FALLBACK, isApiSportsWidgetAvailable } from "@/lib/api-sports-widgets";
-import { API_SPORTS_WIDGET_SCRIPT_SELECTOR, API_SPORTS_WIDGET_SCRIPT_SRC, buildApiSportsDataAttributes } from "@/lib/api-sports-widget-attributes";
+import { API_SPORTS_WIDGET_CLASS_NAME, API_SPORTS_WIDGET_SCRIPT_SELECTOR, API_SPORTS_WIDGET_SCRIPT_SRC, apiSportsWidgetElementId, buildApiSportsDataAttributes } from "@/lib/api-sports-widget-attributes";
 
 describe("API-Sports widget embeds", () => {
   it("treats disabled widgets as unavailable", () => {
@@ -36,6 +36,8 @@ describe("API-Sports widget embeds", () => {
   it("uses one stable script selector and the documented widget script host", () => {
     expect(API_SPORTS_WIDGET_SCRIPT_SELECTOR).toBe("script[data-api-sports-widgets-v3]");
     expect(API_SPORTS_WIDGET_SCRIPT_SRC).toBe("https://widgets.api-sports.io/2.0.3/widgets.js");
+    expect(API_SPORTS_WIDGET_CLASS_NAME).toBe("api_football_loader");
+    expect(apiSportsWidgetElementId("games", "1")).toBe("wg-api-football-games");
   });
 
   it("includes players and team fallback messages", () => {
