@@ -31,11 +31,11 @@ export default async function MatchPage({ params }: { params: Promise<{ id: stri
       <section className="mx-auto max-w-3xl px-6 py-8">
         <h1 className="text-3xl font-semibold">Match {notAvailable(match.matchNumber)}</h1>
         <div className="mt-5">
-          {match.sourceProvider === "API_FOOTBALL" && match.providerId ? (
+          {match.apiFootballFixtureId ? (
             <>
               <h2 className="text-2xl font-semibold">Live widgets powered by API-Sports</h2>
               <div className="mt-4">
-                <ApiSportsGameWidget fixture={match.providerId} title="API-Sports fixture statistics" />
+                <ApiSportsGameWidget fixture={match.apiFootballFixtureId} title="API-Sports fixture statistics" />
               </div>
             </>
           ) : (

@@ -42,6 +42,11 @@ function assertNoApiFootballErrors(data: unknown) {
 
 export class ApiFootballProvider implements FootballProvider {
   readonly name = ProviderName.API_FOOTBALL;
+  private readonly includeDetails: boolean;
+
+  constructor(options: { includeDetails?: boolean } = {}) {
+    this.includeDetails = options.includeDetails ?? true;
+  }
 
   isConfigured() {
     return env.API_FOOTBALL_KEY.length > 0;
@@ -90,6 +95,7 @@ export class ApiFootballProvider implements FootballProvider {
   }
 
   async getWorldCupSquads(): Promise<ProviderSquad[]> {
+    if (!this.includeDetails) return [];
     if (!this.isConfigured()) return [];
     const teams = await this.getWorldCupTeams();
     const squads: ProviderSquad[] = [];
@@ -110,6 +116,7 @@ export class ApiFootballProvider implements FootballProvider {
   }
 
   async getWorldCupPlayers(): Promise<ProviderPlayer[]> {
+    if (!this.includeDetails) return [];
     if (!this.isConfigured()) return [];
     const teams = await this.getWorldCupTeams();
     const players: ProviderPlayer[] = [];
@@ -130,18 +137,22 @@ export class ApiFootballProvider implements FootballProvider {
   }
 
   async getWorldCupLineups(): Promise<ProviderLineup[]> {
+    if (!this.includeDetails) return [];
     return this.getFixtureDetailCollection("lineups", apiFootballLineupResponseSchema, mapApiFootballLineups);
   }
 
   async getWorldCupEvents(): Promise<ProviderEvent[]> {
+    if (!this.includeDetails) return [];
     return this.getFixtureDetailCollection("events", apiFootballEventsResponseSchema, mapApiFootballEvents);
   }
 
   async getWorldCupMatchStatistics(): Promise<ProviderMatchStatistic[]> {
+    if (!this.includeDetails) return [];
     return this.getFixtureDetailCollection("statistics", apiFootballFixtureStatisticsResponseSchema, mapApiFootballFixtureStatistics);
   }
 
   async getWorldCupTeamStatistics(): Promise<ProviderTeamStatistic[]> {
+    if (!this.includeDetails) return [];
     if (!this.isConfigured()) return [];
     const teams = await this.getWorldCupTeams();
     const stats: ProviderTeamStatistic[] = [];

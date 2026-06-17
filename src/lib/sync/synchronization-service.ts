@@ -5,7 +5,7 @@ import { TheSportsDbProvider } from "@/lib/providers/thesportsdb";
 import { WorldCup2026OpenSourceProvider } from "@/lib/providers/worldcup2026";
 import { logApp } from "@/lib/logger";
 import { sendSyncFailureAlert } from "@/lib/monitoring";
-import type { FootballProvider, ProviderEvent, ProviderLineup, ProviderMatchStatistic, ProviderPlayer, ProviderStadium, ProviderTeam, ProviderTeamStatistic } from "@/lib/providers/types";
+import type { FootballProvider, ProviderEvent, ProviderLineup, ProviderMatch, ProviderMatchStatistic, ProviderPlayer, ProviderStadium, ProviderTeam, ProviderTeamStatistic } from "@/lib/providers/types";
 
 export type SyncResult = {
   provider: ProviderName;
@@ -33,6 +33,16 @@ async function upsertTeam(team: ProviderTeam) {
     });
   }
   if (existing) {
+    if (team.provider === ProviderName.API_FOOTBALL) {
+      return prisma.team.update({
+        where: { id: existing.id },
+        data: {
+          apiFootballId: Number(team.providerId),
+          badgeUrl: existing.badgeUrl ?? team.badgeUrl
+        }
+      });
+    }
+
     return prisma.team.update({
       where: { id: existing.id },
       data: {
@@ -79,7 +89,7 @@ async function findTeam(provider: ProviderName, providerId?: string) {
 }
 
 async function findTeamByStaticIdentity(team: ProviderTeam) {
-  return prisma.team.findFirst({
+  const direct = await prisma.team.findFirst({
     where: {
       OR: [
         ...(team.fifaCode ? [{ fifaCode: team.fifaCode }] : []),
@@ -87,10 +97,48 @@ async function findTeamByStaticIdentity(team: ProviderTeam) {
       ]
     }
   });
+  if (direct) return direct;
+
+  const teams = await prisma.team.findMany();
+  const incomingName = normalizeFootballName(team.name);
+  return teams.find((candidate) => normalizeFootballName(candidate.name) === incomingName) ?? null;
 }
 
 async function findMatch(provider: ProviderName, providerId: string) {
+  if (provider === ProviderName.API_FOOTBALL) {
+    return prisma.match.findUnique({ where: { apiFootballFixtureId: Number(providerId) } });
+  }
   return prisma.match.findUnique({ where: { sourceProvider_providerId: { sourceProvider: provider, providerId } } });
+}
+
+async function findExistingMatchForProviderMatch(provider: ProviderName, tournamentId: string, match: ProviderMatch, homeTeamId?: string, awayTeamId?: string) {
+  if (provider !== ProviderName.API_FOOTBALL) return null;
+
+  const mapped = await prisma.match.findUnique({ where: { apiFootballFixtureId: Number(match.providerId) } });
+  if (mapped) return mapped;
+  if (!homeTeamId || !awayTeamId) return null;
+
+  const byTeams = await prisma.match.findFirst({
+    where: {
+      tournamentId,
+      homeTeamId,
+      awayTeamId,
+      sourceProvider: ProviderName.WORLDCUP2026_OPEN_SOURCE
+    },
+    orderBy: [{ kickoffAt: "asc" }]
+  });
+  if (byTeams) return byTeams;
+
+  const byTeamsReverse = await prisma.match.findFirst({
+    where: {
+      tournamentId,
+      homeTeamId: awayTeamId,
+      awayTeamId: homeTeamId,
+      sourceProvider: ProviderName.WORLDCUP2026_OPEN_SOURCE
+    },
+    orderBy: [{ kickoffAt: "asc" }]
+  });
+  return byTeamsReverse;
 }
 
 async function upsertPlayer(player: ProviderPlayer) {
@@ -424,9 +472,38 @@ export async function synchronizeProvider(provider: FootballProvider): Promise<S
       const homeTeam = match.homeTeam ? await upsertTeam(match.homeTeam) : null;
       const awayTeam = match.awayTeam ? await upsertTeam(match.awayTeam) : null;
       const stadium = match.stadiumProviderId ? await prisma.stadium.findUnique({ where: { worldcup2026Id: match.stadiumProviderId } }) : null;
+      const existingMatch = await findExistingMatchForProviderMatch(provider.name, tournament.id, match, homeTeam?.id, awayTeam?.id);
+      if (existingMatch) {
+        await prisma.match.update({
+          where: { id: existingMatch.id },
+          data: {
+            apiFootballFixtureId: Number(match.providerId),
+            stage: match.stage,
+            stageOrder: match.stageOrder ?? existingMatch.stageOrder,
+            knockoutRound: match.knockoutRound ?? existingMatch.knockoutRound,
+            groupName: match.groupName ?? existingMatch.groupName,
+            kickoffAt: match.kickoffAt,
+            venue: match.venue ?? existingMatch.venue,
+            city: match.city ?? existingMatch.city,
+            status: match.status,
+            homeTeamId: homeTeam?.id ?? existingMatch.homeTeamId,
+            awayTeamId: awayTeam?.id ?? existingMatch.awayTeamId,
+            stadiumId: stadium?.id ?? existingMatch.stadiumId,
+            homeScore: match.homeScore,
+            awayScore: match.awayScore,
+            extraTimeHome: match.extraTimeHome,
+            extraTimeAway: match.extraTimeAway,
+            penaltyHome: match.penaltyHome,
+            penaltyAway: match.penaltyAway
+          }
+        });
+        continue;
+      }
+
       await prisma.match.upsert({
         where: { sourceProvider_providerId: { sourceProvider: match.provider, providerId: match.providerId } },
         update: {
+          ...(provider.name === ProviderName.API_FOOTBALL ? { apiFootballFixtureId: Number(match.providerId) } : {}),
           stage: match.stage,
           matchNumber: match.matchNumber,
           stageOrder: match.stageOrder ?? 0,
@@ -452,6 +529,7 @@ export async function synchronizeProvider(provider: FootballProvider): Promise<S
           tournamentId: tournament.id,
           sourceProvider: match.provider,
           providerId: match.providerId,
+          apiFootballFixtureId: provider.name === ProviderName.API_FOOTBALL ? Number(match.providerId) : undefined,
           matchNumber: match.matchNumber,
           stage: match.stage,
           stageOrder: match.stageOrder ?? 0,
@@ -550,6 +628,24 @@ export async function synchronizeProvider(provider: FootballProvider): Promise<S
 function getProviderConfigurationMessage(provider: FootballProvider) {
   const maybeProvider = provider as FootballProvider & { configurationMessage?: () => string };
   return maybeProvider.configurationMessage?.() ?? "Provider is not configured.";
+}
+
+function normalizeFootballName(value: string) {
+  return value
+    .toLowerCase()
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/&/g, " and ")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim()
+    .replace(/\b(usa|united states|united states of america)\b/g, "united states")
+    .replace(/\b(czechia|czech republic)\b/g, "czech republic")
+    .replace(/\b(bosnia and herzegovina|bosnia herzegovina)\b/g, "bosnia and herzegovina")
+    .replace(/\b(congo dr|dr congo|democratic republic of the congo)\b/g, "dr congo")
+    .replace(/\b(cote d ivoire|ivory coast)\b/g, "ivory coast")
+    .replace(/\b(korea republic|south korea)\b/g, "south korea")
+    .replace(/\b(ir iran|iran)\b/g, "iran")
+    .trim();
 }
 
 export async function synchronizeAllProviders() {

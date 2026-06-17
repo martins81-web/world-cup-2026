@@ -137,6 +137,7 @@ model Match {
   extraTimeAway  Int?
   penaltyHome    Int?
   penaltyAway    Int?
+  apiFootballFixtureId Int?        @unique
   sportsDbEventId String?      @unique
   artworkUrl     String?
   thumbnailUrl   String?
