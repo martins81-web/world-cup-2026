@@ -393,6 +393,33 @@ export async function synchronizeProvider(provider: FootballProvider): Promise<S
       });
       return { provider: provider.name, status: "skipped", message, teamsSeen: teams.length, matchesSeen: 0, groupsSeen: groups.length, stadiumsSeen: stadiums.length, source: provider.source, errors: provider.errors };
     }
+
+    if (
+      provider.name === ProviderName.WORLDCUP2026_OPEN_SOURCE &&
+      provider.source &&
+      provider.source !== "hosted API partial"
+    ) {
+      const existingMatches = await prisma.match.count({ where: { tournamentId: tournament.id } });
+      if (existingMatches > 0) {
+        const message = "No fresh hosted match payload was available; existing match results were retained.";
+        await prisma.syncRun.update({
+          where: { id: run.id },
+          data: {
+            status: "skipped",
+            finishedAt: new Date(),
+            message,
+            teamsSeen: teams.length,
+            matchesSeen: matches.length,
+            groupsSeen: groups.length,
+            stadiumsSeen: stadiums.length,
+            source: provider.source,
+            errors: provider.errors as Prisma.InputJsonValue
+          }
+        });
+        return { provider: provider.name, status: "skipped", message, teamsSeen: teams.length, matchesSeen: matches.length, groupsSeen: groups.length, stadiumsSeen: stadiums.length, source: provider.source, errors: provider.errors };
+      }
+    }
+
     for (const match of matches) {
       const homeTeam = match.homeTeam ? await upsertTeam(match.homeTeam) : null;
       const awayTeam = match.awayTeam ? await upsertTeam(match.awayTeam) : null;
