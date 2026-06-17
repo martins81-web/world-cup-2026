@@ -1,10 +1,10 @@
 import { notFound } from "next/navigation";
-import { ApiSportsWidget } from "@/components/api-sports-widget";
 import { DevelopmentNotice } from "@/components/development-notice";
 import { LocalDateTime } from "@/components/local-date-time";
+import { ApiSportsGameWidget } from "@/components/widgets/api-sports-game-widget";
 import { FeaturedMatchWidget } from "@/components/widgets/featured-match-widget";
 import { getMatchById, getTournament } from "@/lib/data/world-cup";
-import { getTheSportsDbEnrichment } from "@/lib/providers/thesportsdb";
+import { findSportsDbEvent, getTheSportsDbEnrichment, TheSportsDbProvider } from "@/lib/providers/thesportsdb";
 import { notAvailable, scoreLine } from "@/lib/ui";
 
 export const dynamic = "force-dynamic";
@@ -15,6 +15,10 @@ export default async function MatchPage({ params }: { params: Promise<{ id: stri
   if (!match) notFound();
   const sportsDb = await getTheSportsDbEnrichment();
   const sportsDbEvents = [...sportsDb.seasonEvents, ...sportsDb.nextEvents, ...sportsDb.previousEvents];
+  const sportsDbEvent = findSportsDbEvent(match, sportsDbEvents);
+  const sportsDbStatistics = sportsDbEvent
+    ? await new TheSportsDbProvider().getEventStatistics(sportsDbEvent.idEvent)
+    : [];
   const localStatistics = getLocalMatchStatistics(match);
 
   return (
@@ -23,7 +27,10 @@ export default async function MatchPage({ params }: { params: Promise<{ id: stri
       <section className="mx-auto max-w-3xl px-6 py-8">
         <h1 className="text-3xl font-semibold">Match {notAvailable(match.matchNumber)}</h1>
         <div className="mt-5">
-          <ApiSportsWidget type="game" fixture={match.providerId} title="API-Sports match widget" fallback={<p className="text-sm text-black/60">Widget not available. Custom match details are shown below.</p>} />
+          <h2 className="text-2xl font-semibold">Live widgets powered by API-Sports</h2>
+          <div className="mt-4">
+            <ApiSportsGameWidget fixture={match.sourceProvider === "API_FOOTBALL" ? match.providerId : null} title="API-Sports fixture statistics" />
+          </div>
         </div>
         <div className="mt-6">
           <FeaturedMatchWidget match={match} events={sportsDbEvents} title="TheSportsDB artwork" />
@@ -72,6 +79,9 @@ export default async function MatchPage({ params }: { params: Promise<{ id: stri
         </section>
         <section id="statistics" className="mt-8 scroll-mt-24">
           <h2 className="text-xl font-semibold">Statistics</h2>
+          {sportsDbEvent ? (
+            <p className="mt-2 text-sm text-black/60">TheSportsDB event ID {sportsDbEvent.idEvent}</p>
+          ) : null}
           <div className="mt-3 grid gap-3 md:grid-cols-2">
             {localStatistics.map((statistic) => (
               <div key={statistic.label} className="rounded-md border bg-white p-3 text-sm">
@@ -84,6 +94,33 @@ export default async function MatchPage({ params }: { params: Promise<{ id: stri
                 {statistic.team.name} - {statistic.type}: {statistic.value ?? "Not available"}
               </div>
             ))}
+          </div>
+          <div className="mt-6 overflow-x-auto rounded-md border bg-white">
+            <table className="min-w-full text-left text-sm">
+              <thead className="bg-black/5">
+                <tr>
+                  <th className="px-3 py-2 font-semibold">Provider stat</th>
+                  <th className="px-3 py-2 font-semibold">{match.homeTeam?.name ?? match.homeSeed ?? "Home"}</th>
+                  <th className="px-3 py-2 font-semibold">{match.awayTeam?.name ?? match.awaySeed ?? "Away"}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {sportsDbStatistics.map((statistic, index) => (
+                  <tr key={statistic.idStatistic ?? `${statistic.strStat}-${index}`} className="border-t">
+                    <td className="px-3 py-2">{notAvailable(statistic.strStat)}</td>
+                    <td className="px-3 py-2 font-medium">{notAvailable(statistic.intHome)}</td>
+                    <td className="px-3 py-2 font-medium">{notAvailable(statistic.intAway)}</td>
+                  </tr>
+                ))}
+                {sportsDbStatistics.length === 0 ? (
+                  <tr className="border-t">
+                    <td className="px-3 py-3 text-black/60" colSpan={3}>
+                      TheSportsDB event statistics are not available for this match yet.
+                    </td>
+                  </tr>
+                ) : null}
+              </tbody>
+            </table>
           </div>
         </section>
       </section>

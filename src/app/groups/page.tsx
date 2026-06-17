@@ -1,5 +1,5 @@
 import { DevelopmentNotice } from "@/components/development-notice";
-import { ApiSportsWidget } from "@/components/api-sports-widget";
+import { ApiSportsStandingsWidget } from "@/components/widgets/api-sports-standings-widget";
 import { getGroupsWithTables } from "@/lib/data/world-cup";
 
 export const dynamic = "force-dynamic";
@@ -13,7 +13,10 @@ export default async function GroupsPage() {
       <section className="mx-auto max-w-6xl px-6 py-8">
         <h1 className="text-3xl font-semibold">Groups</h1>
         <div className="mt-5">
-          <ApiSportsWidget type="standings" title="API-Sports standings widget" fallback={<p className="text-sm text-black/60">Widget not available. Custom standings are shown below.</p>} />
+          <h2 className="text-2xl font-semibold">Live widgets powered by API-Sports</h2>
+          <div className="mt-4">
+            <ApiSportsStandingsWidget />
+          </div>
         </div>
         <div className="mt-6 grid gap-5 md:grid-cols-2 xl:grid-cols-3">
           {tables.map((group) => (

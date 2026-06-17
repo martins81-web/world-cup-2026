@@ -1,5 +1,6 @@
-import { ApiSportsWidget } from "@/components/api-sports-widget";
 import { DevelopmentNotice } from "@/components/development-notice";
+import { ApiSportsGamesWidget } from "@/components/widgets/api-sports-games-widget";
+import { ApiSportsStandingsWidget } from "@/components/widgets/api-sports-standings-widget";
 import { FeaturedMatchWidget } from "@/components/widgets/featured-match-widget";
 import { BracketPreviewWidget } from "@/components/widgets/bracket-preview-widget";
 import { GroupOverviewWidget } from "@/components/widgets/group-overview-widget";
@@ -36,11 +37,17 @@ export default async function HomePage() {
           <p className="mt-3 text-white/75">{matches.length} matches loaded from PostgreSQL.</p>
         </div>
       </section>
-      <section className="mx-auto grid max-w-6xl gap-6 px-6 py-8 lg:grid-cols-[1.2fr_0.8fr]">
+      <section className="mx-auto grid max-w-6xl gap-6 px-6 py-8 xl:grid-cols-[1.2fr_0.8fr]">
         <div>
           <FeaturedMatchWidget match={featuredMatch} events={sportsDbEvents} />
           <div className="mt-4">
-            <ApiSportsWidget type="live" title="Live matches" fallback={<p className="text-sm text-black/60">Live widget not available.</p>} />
+            <section>
+              <h2 className="text-2xl font-semibold">Live widgets powered by API-Sports</h2>
+              <div className="mt-4 grid gap-4 lg:grid-cols-2">
+                <ApiSportsGamesWidget title="Live API-Sports games" />
+                <ApiSportsStandingsWidget title="Live API-Sports standings" />
+              </div>
+            </section>
           </div>
           <div className="mt-6">
             <NextMatchesWidget matches={upcomingMatches} events={sportsDbEvents} title="Upcoming matches" />

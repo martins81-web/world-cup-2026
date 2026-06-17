@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { Match, Team } from "@prisma/client";
 import { LocalDateTime } from "@/components/local-date-time";
 import { MatchArtwork } from "@/components/widgets/match-artwork";
+import { findSportsDbEvent, sportsDbImageUrl, type SportsDbEvent } from "@/lib/providers/thesportsdb";
 import { notAvailable, scoreLine } from "@/lib/ui";
 
 type MatchWithTeams = Match & { homeTeam?: Team | null; awayTeam?: Team | null };
@@ -10,12 +11,15 @@ export function matchStatisticsHref(match: Pick<Match, "id" | "matchNumber">) {
   return `/matches/${match.matchNumber ?? match.id}#statistics`;
 }
 
-export function MatchCard({ match }: { match: MatchWithTeams }) {
+export function MatchCard({ match, events = [] }: { match: MatchWithTeams; events?: SportsDbEvent[] }) {
   const href = matchStatisticsHref(match);
+  const event = findSportsDbEvent(match, events);
+  const imageUrl = sportsDbImageUrl(event?.strThumb, event?.strBanner, event?.strPoster, event?.strFanart);
 
   return (
     <article className="grid max-w-full gap-4 overflow-hidden rounded-md border border-black/10 bg-white p-4 shadow-sm sm:grid-cols-[128px_minmax(0,1fr)]">
       <MatchArtwork
+        imageUrl={imageUrl}
         homeTeam={match.homeTeam}
         awayTeam={match.awayTeam}
         homeLabel={match.homeSeed}

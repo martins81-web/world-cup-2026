@@ -11,6 +11,13 @@ const serverEnvSchema = z.object({
   SYNC_ALERT_WEBHOOK_URL: z.string().url().optional(),
   API_FOOTBALL_KEY: z.string().optional().default(""),
   API_FOOTBALL_BASE_URL: z.string().url().default("https://v3.football.api-sports.io"),
+  API_SPORTS_WIDGETS_ENABLED: z.enum(["true", "false"]).default("false"),
+  API_SPORTS_WIDGETS_KEY: z.string().optional().default(""),
+  API_SPORTS_WIDGETS_HOST: z.string().min(1).default("v3.football.api-sports.io"),
+  API_SPORTS_WIDGETS_LEAGUE_ID: z.string().default("1"),
+  API_SPORTS_WIDGETS_SEASON: z.string().default("2026"),
+  API_SPORTS_WIDGETS_THEME: z.enum(["light", "dark"]).default("light"),
+  API_SPORTS_WIDGETS_LANG: z.string().min(2).default("en"),
   WORLDCUP2026_API_ENABLED: z.enum(["true", "false"]).default("false"),
   WORLDCUP2026_API_BASE_URL: z.string().url().default("https://worldcup26.ir"),
   WORLDCUP2026_API_TOKEN: z.string().optional().default(""),
@@ -25,7 +32,8 @@ const serverEnvSchema = z.object({
   ...value,
   ADMIN_SESSION_SECRET: value.ADMIN_SESSION_SECRET || value.ADMIN_SYNC_TOKEN,
   WORLDCUP2026_API_ENABLED: value.WORLDCUP2026_API_ENABLED === "true",
-  THESPORTSDB_ENABLED: value.THESPORTSDB_ENABLED === "true"
+  THESPORTSDB_ENABLED: value.THESPORTSDB_ENABLED === "true",
+  API_SPORTS_WIDGETS_ENABLED: value.API_SPORTS_WIDGETS_ENABLED === "true"
 }));
 
 export const env = serverEnvSchema.parse(process.env);

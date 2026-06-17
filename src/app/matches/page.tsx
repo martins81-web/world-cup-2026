@@ -1,5 +1,5 @@
 import { DevelopmentNotice } from "@/components/development-notice";
-import { ApiSportsWidget } from "@/components/api-sports-widget";
+import { ApiSportsGamesWidget } from "@/components/widgets/api-sports-games-widget";
 import { MatchCard } from "@/components/match-card";
 import { MatchFilters } from "@/components/match-filters";
 import { NextMatchesWidget } from "@/components/widgets/next-matches-widget";
@@ -27,7 +27,10 @@ export default async function MatchesPage({ searchParams }: { searchParams: Prom
       <section className="mx-auto max-w-6xl px-6 py-8">
         <h1 className="text-3xl font-semibold">Matches</h1>
         <div className="mt-5">
-          <ApiSportsWidget type="games" title="API-Sports match list" fallback={<p className="text-sm text-black/60">Widget not available. Custom match list is shown below.</p>} />
+          <h2 className="text-2xl font-semibold">Live widgets powered by API-Sports</h2>
+          <div className="mt-4">
+            <ApiSportsGamesWidget title="API-Sports match list" />
+          </div>
         </div>
         <div className="mt-6 grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
           <NextMatchesWidget matches={upcomingMatches} events={sportsDbEvents} title="Upcoming fixtures" />
@@ -35,7 +38,7 @@ export default async function MatchesPage({ searchParams }: { searchParams: Prom
         </div>
         <div className="mt-5"><MatchFilters defaults={filters} /></div>
         <div className="mt-6 grid gap-4 md:grid-cols-2">
-          {matches.map((match) => <MatchCard key={match.id} match={match} />)}
+          {matches.map((match) => <MatchCard key={match.id} match={match} events={sportsDbEvents} />)}
         </div>
         {matches.length === 0 ? <p className="mt-6">Not available</p> : null}
       </section>

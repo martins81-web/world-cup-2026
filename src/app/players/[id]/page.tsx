@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import Image from "next/image";
 import { DevelopmentNotice } from "@/components/development-notice";
-import { ApiSportsWidget } from "@/components/api-sports-widget";
+import { ApiSportsPlayerWidget } from "@/components/widgets/api-sports-player-widget";
 import { getPlayerById } from "@/lib/data/world-cup";
 import { notAvailable } from "@/lib/ui";
 
@@ -24,7 +24,10 @@ export default async function PlayerPage({ params }: { params: Promise<{ id: str
       <section className="mx-auto max-w-4xl px-6 py-8">
         <h1 className="text-3xl font-semibold">{player.name}</h1>
         <div className="mt-5">
-          <ApiSportsWidget type="player" player={player.apiFootballId} title="API-Sports player widget" fallback={<p className="text-sm text-black/60">Widget not available. Custom player profile is shown below.</p>} />
+          <h2 className="text-2xl font-semibold">Live widgets powered by API-Sports</h2>
+          <div className="mt-4">
+            <ApiSportsPlayerWidget player={player.apiFootballId} />
+          </div>
         </div>
         <Image className="mt-4 h-28 w-28 rounded object-cover" src={player.photoUrl ?? "/fallback-player.svg"} alt="" width={112} height={112} />
         <p className="mt-2 text-black/60">{notAvailable(player.position)} · {notAvailable(player.squads[0]?.team.name)}</p>

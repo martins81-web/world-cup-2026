@@ -37,6 +37,14 @@ export type SportsDbEvent = {
   strFanart?: string;
 };
 
+export type SportsDbEventStatistic = {
+  idStatistic?: string;
+  idEvent?: string;
+  strStat?: string;
+  intHome?: string | null;
+  intAway?: string | null;
+};
+
 export type TheSportsDbEnrichment = {
   enabled: boolean;
   source: string;
@@ -55,6 +63,8 @@ type SportsDbListResponse = {
   leagues?: unknown[];
   teams?: SportsDbTeam[] | null;
   events?: SportsDbEvent[] | null;
+  eventstats?: SportsDbEventStatistic[] | null;
+  stats?: SportsDbEventStatistic[] | null;
 };
 
 export class TheSportsDbProvider implements FootballProvider {
@@ -155,6 +165,12 @@ export class TheSportsDbProvider implements FootballProvider {
   async getEventDetails(eventId: string) {
     const result = await this.readEndpoint<SportsDbListResponse>(`event:${eventId}`, `lookupevent.php?id=${encodeURIComponent(eventId)}`);
     return result.data?.events?.[0];
+  }
+
+  async getEventStatistics(eventId: string) {
+    if (!this.isConfigured()) return [];
+    const result = await this.readEndpoint<SportsDbListResponse>(`event-stats:${eventId}`, `lookupeventstats.php?id=${encodeURIComponent(eventId)}`);
+    return result.data?.eventstats ?? result.data?.stats ?? [];
   }
 
   async getTeamDetails(teamId: string) {

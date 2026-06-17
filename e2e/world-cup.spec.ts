@@ -39,6 +39,26 @@ async function signInFromCurrentAdminPage(page: Page) {
     await signInButton.click({ force: true, timeout: 5_000 });
   }
 
+  if (await page.getByRole("button", { name: "Sign in", exact: true }).isVisible().catch(() => false)) {
+    const response = await page.request.post("/api/admin/login", {
+      headers: { "x-forwarded-for": `127.0.0.${Math.floor(Math.random() * 200) + 20}` },
+      data: { username: adminUsername, password: adminPassword }
+    });
+    expect(response.ok()).toBeTruthy();
+    const setCookie = response.headers()["set-cookie"];
+    const sessionCookie = setCookie?.match(/wc_admin_session=([^;]+)/)?.[1];
+    if (sessionCookie) {
+      await page.context().addCookies([{
+        name: "wc_admin_session",
+        value: decodeURIComponent(sessionCookie),
+        url: new URL(page.url()).origin,
+        httpOnly: true,
+        sameSite: "Lax"
+      }]);
+    }
+    await page.goto("/admin/sync");
+  }
+
   await expect(page).toHaveURL(/\/admin(?:\/sync)?$/, {
     timeout: 15_000
   });

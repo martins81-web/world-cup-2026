@@ -62,6 +62,26 @@ describe("TheSportsDB enrichment provider", () => {
       matchesSeen: 1
     });
   });
+
+  it("loads event statistics from the documented v1 endpoint", async () => {
+    const { TheSportsDbProvider } = await loadProvider({ THESPORTSDB_ENABLED: "true", THESPORTSDB_KEY: "123" });
+    const requestedUrls: string[] = [];
+    const provider = new TheSportsDbProvider(async ({ url }) => {
+      requestedUrls.push(url);
+      return {
+        eventstats: [
+          { idStatistic: "1", idEvent: "1032723", strStat: "Shots", intHome: "12", intAway: "8" }
+        ]
+      } as any;
+    });
+
+    const stats = await provider.getEventStatistics("1032723");
+
+    expect(requestedUrls[0]).toBe("https://www.thesportsdb.com/api/v1/json/123/lookupeventstats.php?id=1032723");
+    expect(stats).toEqual([
+      { idStatistic: "1", idEvent: "1032723", strStat: "Shots", intHome: "12", intAway: "8" }
+    ]);
+  });
 });
 
 describe("TheSportsDB widget enrichment matching", () => {

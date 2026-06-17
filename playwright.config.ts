@@ -23,8 +23,13 @@ export default defineConfig({
       ADMIN_USERNAME: process.env.ADMIN_USERNAME ?? "admin",
       ADMIN_PASSWORD_HASH: process.env.ADMIN_PASSWORD_HASH ?? "",
       ADMIN_SESSION_SECRET: process.env.ADMIN_SESSION_SECRET ?? "test-admin-session-secret-123456789",
-      NEXT_PUBLIC_API_SPORTS_WIDGET_KEY: process.env.NEXT_PUBLIC_API_SPORTS_WIDGET_KEY ?? "",
-      NEXT_PUBLIC_API_SPORTS_WIDGET_HOST: process.env.NEXT_PUBLIC_API_SPORTS_WIDGET_HOST ?? "https://widgets.api-sports.io"
+      API_SPORTS_WIDGETS_ENABLED: process.env.API_SPORTS_WIDGETS_ENABLED ?? "false",
+      API_SPORTS_WIDGETS_KEY: process.env.API_SPORTS_WIDGETS_KEY ?? "",
+      API_SPORTS_WIDGETS_HOST: process.env.API_SPORTS_WIDGETS_HOST ?? "v3.football.api-sports.io",
+      API_SPORTS_WIDGETS_LEAGUE_ID: process.env.API_SPORTS_WIDGETS_LEAGUE_ID ?? "1",
+      API_SPORTS_WIDGETS_SEASON: process.env.API_SPORTS_WIDGETS_SEASON ?? "2026",
+      API_SPORTS_WIDGETS_THEME: process.env.API_SPORTS_WIDGETS_THEME ?? "light",
+      API_SPORTS_WIDGETS_LANG: process.env.API_SPORTS_WIDGETS_LANG ?? "en"
     }
   },
   projects: [
