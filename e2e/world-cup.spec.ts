@@ -139,7 +139,8 @@ test("team, squad and player pages", async ({ page }) => {
   const player = page.locator("article a").first();
   if (await player.count()) {
     await player.click();
-    await expect(page.getByRole("heading")).toBeVisible();
+    await expect(page).toHaveURL(/\/players\/[^/]+$/);
+    await expect(page.locator("h1")).toBeVisible();
   }
 });
 
