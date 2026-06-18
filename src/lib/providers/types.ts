@@ -122,6 +122,14 @@ export type ProviderTeamStatistic = {
   raw?: unknown;
 };
 
+export type ProviderDataset = {
+  dataset: string;
+  scopeId: string;
+  recordCount: number;
+  payload: unknown;
+  fetchedAt?: Date;
+};
+
 export interface FootballProvider {
   readonly name: ProviderName;
   readonly source?: string;
@@ -137,6 +145,7 @@ export interface FootballProvider {
   getWorldCupEvents?(): Promise<ProviderEvent[]>;
   getWorldCupMatchStatistics?(): Promise<ProviderMatchStatistic[]>;
   getWorldCupTeamStatistics?(): Promise<ProviderTeamStatistic[]>;
+  getWorldCupDatasets?(): Promise<ProviderDataset[]>;
   syncEnrichmentOnly?(): Promise<{
     status: "skipped" | "success" | "partial" | "failed";
     message: string;

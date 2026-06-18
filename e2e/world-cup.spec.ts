@@ -96,10 +96,23 @@ async function signInFromCurrentAdminPage(page: Page) {
 test("homepage and widget fallback", async ({ page }) => {
   await page.goto("/");
   await expect(page.getByRole("heading", { name: /World Cup 2026/i })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "World Cup live center", exact: true })).toBeVisible();
   for (const heading of ["Featured match", "Upcoming matches", "Recent results", "Team showcase", "Group overview", "Bracket preview"]) {
     await expect(page.getByRole("heading", { name: heading, exact: true })).toBeVisible();
   }
   await expect(page.getByTestId("widget-fallback").first()).toBeVisible();
+});
+
+test("live center exposes all widget families", async ({ page }) => {
+  await page.goto("/live");
+  await expect(page.getByRole("heading", { name: "API-Sports Live Center", exact: true })).toBeVisible();
+  for (const label of [
+    "Fixtures and live scores",
+    "Live standings",
+    "Featured fixture center"
+  ]) {
+    await expect(page.getByLabel(label, { exact: true })).toBeVisible();
+  }
 });
 
 test("matches filters and details", async ({ page }) => {
@@ -135,7 +148,8 @@ test("team, squad and player pages", async ({ page }) => {
   await team.click();
   await expect(page.getByRole("link", { name: "Squad" })).toBeVisible();
   await page.getByRole("link", { name: "Squad" }).click();
-  await expect(page.getByRole("heading", { name: /Squad/i })).toBeVisible();
+  await expect(page).toHaveURL(/\/teams\/[^/]+\/squad$/);
+  await expect(page.locator("h1")).toContainText("Squad");
   const player = page.locator("article a").first();
   if (await player.count()) {
     await player.click();

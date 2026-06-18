@@ -7,6 +7,7 @@ import { API_SPORTS_WIDGET_CLASS_NAME, API_SPORTS_WIDGET_SCRIPT_SELECTOR, API_SP
 declare global {
   interface Window {
     __apiSportsWidgetsScript?: Promise<void>;
+    __apiSportsWidgetsInitTimer?: number;
   }
 }
 
@@ -63,7 +64,10 @@ export function ApiSportsWidget({
     let cancelled = false;
     loadApiSportsWidgetScript()
       .then(() => {
-        if (!cancelled) setStatus("ready");
+        if (!cancelled) {
+          scheduleApiSportsWidgetInitialization();
+          setStatus("ready");
+        }
       })
       .catch(() => {
         if (!cancelled) setStatus("failed");
@@ -128,7 +132,31 @@ function WidgetFallback({ title, fallback }: { title: string; fallback?: React.R
 function loadApiSportsWidgetScript() {
   if (window.__apiSportsWidgetsScript) return window.__apiSportsWidgetsScript;
 
-  window.__apiSportsWidgetsScript = new Promise((resolve, reject) => {
+  window.__apiSportsWidgetsScript = loadApiSportsWidgetScriptWithRetry();
+  return window.__apiSportsWidgetsScript;
+}
+
+async function loadApiSportsWidgetScriptWithRetry() {
+  const maxAttempts = 3;
+  let lastError: Error | undefined;
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    try {
+      await injectApiSportsWidgetScript(attempt);
+      return;
+    } catch (error) {
+      lastError = error instanceof Error ? error : new Error("API-Sports widget script failed");
+      document.querySelector<HTMLScriptElement>(API_SPORTS_WIDGET_SCRIPT_SELECTOR)?.remove();
+      if (attempt < maxAttempts) {
+        await new Promise((resolve) => window.setTimeout(resolve, attempt * 2000));
+      }
+    }
+  }
+  window.__apiSportsWidgetsScript = undefined;
+  throw lastError ?? new Error("API-Sports widget script failed");
+}
+
+function injectApiSportsWidgetScript(attempt: number) {
+  return new Promise<void>((resolve, reject) => {
     const existing = document.querySelector<HTMLScriptElement>(API_SPORTS_WIDGET_SCRIPT_SELECTOR);
     if (existing) {
       if (existing.dataset.loaded === "true") resolve();
@@ -140,7 +168,7 @@ function loadApiSportsWidgetScript() {
     }
 
     const script = document.createElement("script");
-    script.src = API_SPORTS_WIDGET_SCRIPT_SRC;
+    script.src = `${API_SPORTS_WIDGET_SCRIPT_SRC}?attempt=${attempt}`;
     script.type = "module";
     script.async = true;
     script.defer = true;
@@ -152,6 +180,14 @@ function loadApiSportsWidgetScript() {
     script.onerror = () => reject(new Error("API-Sports widget script failed"));
     document.body.appendChild(script);
   });
+}
 
-  return window.__apiSportsWidgetsScript;
+function scheduleApiSportsWidgetInitialization() {
+  if (window.__apiSportsWidgetsInitTimer) {
+    window.clearTimeout(window.__apiSportsWidgetsInitTimer);
+  }
+  window.__apiSportsWidgetsInitTimer = window.setTimeout(() => {
+    window.dispatchEvent(new Event("DOMContentLoaded"));
+    window.__apiSportsWidgetsInitTimer = undefined;
+  }, 0);
 }

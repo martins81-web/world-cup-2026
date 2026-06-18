@@ -384,6 +384,20 @@ model ExternalApiCache {
   @@index([expiresAt])
 }
 
+model ApiFootballDataset {
+  id          String   @id @default(cuid())
+  dataset     String
+  scopeId     String
+  recordCount Int      @default(0)
+  payload     Json
+  fetchedAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([dataset, scopeId])
+  @@index([dataset])
+  @@index([fetchedAt])
+}
+
 model ApiQuotaUsage {
   id        String       @id @default(cuid())
   provider  ProviderName
@@ -430,6 +444,7 @@ model SyncRun {
   teamsSeen   Int          @default(0)
   groupsSeen  Int          @default(0)
   stadiumsSeen Int         @default(0)
+  datasetsSeen Int         @default(0)
   source      String?
   errors      Json?
 }

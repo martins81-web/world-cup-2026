@@ -1,7 +1,7 @@
 import { ProviderName } from "@prisma/client";
 import { env } from "@/lib/env";
 import { cachedJsonFetch } from "@/lib/providers/http-cache";
-import type { FootballProvider, ProviderEvent, ProviderLineup, ProviderMatch, ProviderMatchStatistic, ProviderPlayer, ProviderSquad, ProviderTeam, ProviderTeamStatistic } from "@/lib/providers/types";
+import type { FootballProvider, ProviderDataset, ProviderEvent, ProviderLineup, ProviderMatch, ProviderMatchStatistic, ProviderPlayer, ProviderSquad, ProviderTeam, ProviderTeamStatistic } from "@/lib/providers/types";
 import { logApp } from "@/lib/logger";
 import {
   apiFootballEventsResponseSchema,
@@ -121,17 +121,27 @@ export class ApiFootballProvider implements FootballProvider {
     const teams = await this.getWorldCupTeams();
     const players: ProviderPlayer[] = [];
     for (const team of teams) {
-      const data = await cachedJsonFetch<unknown>({
-        provider: this.name,
-        cacheKey: `players:${WORLD_CUP_SEASON}:${team.providerId}`,
-        url: `${env.API_FOOTBALL_BASE_URL}/players?team=${team.providerId}&league=${WORLD_CUP_LEAGUE_ID}&season=${WORLD_CUP_SEASON}`,
-        headers: { "x-apisports-key": env.API_FOOTBALL_KEY },
-        quotaLimit: env.API_FOOTBALL_DAILY_LIMIT
-      });
-      assertNoApiFootballErrors(data);
-      const parsed = apiFootballPlayersResponseSchema.safeParse(data);
-      if (parsed.success) players.push(...parsed.data.response.map((item) => mapApiFootballPlayer(item)));
-      else await logApp("error", "api-football", "Players payload validation failed", { providerId: team.providerId, issues: JSON.parse(JSON.stringify(parsed.error.issues)) });
+      let page = 1;
+      let totalPages = 1;
+      do {
+        const data = await cachedJsonFetch<unknown>({
+          provider: this.name,
+          cacheKey: `players:${WORLD_CUP_SEASON}:${team.providerId}:page:${page}`,
+          url: `${env.API_FOOTBALL_BASE_URL}/players?team=${team.providerId}&league=${WORLD_CUP_LEAGUE_ID}&season=${WORLD_CUP_SEASON}&page=${page}`,
+          headers: { "x-apisports-key": env.API_FOOTBALL_KEY },
+          quotaLimit: env.API_FOOTBALL_DAILY_LIMIT
+        });
+        assertNoApiFootballErrors(data);
+        const parsed = apiFootballPlayersResponseSchema.safeParse(data);
+        if (parsed.success) {
+          players.push(...parsed.data.response.map((item) => mapApiFootballPlayer(item)));
+          totalPages = parsed.data.paging?.total ?? 1;
+        } else {
+          await logApp("error", "api-football", "Players payload validation failed", { providerId: team.providerId, page, issues: JSON.parse(JSON.stringify(parsed.error.issues)) });
+          break;
+        }
+        page += 1;
+      } while (page <= totalPages);
     }
     return players;
   }
@@ -170,6 +180,66 @@ export class ApiFootballProvider implements FootballProvider {
       else await logApp("error", "api-football", "Team statistics payload validation failed", { providerId: team.providerId, issues: JSON.parse(JSON.stringify(parsed.error.issues)) });
     }
     return stats;
+  }
+
+  async getWorldCupDatasets(): Promise<ProviderDataset[]> {
+    if (!this.includeDetails || !this.isConfigured()) return [];
+
+    const datasets: ProviderDataset[] = [];
+    const competitionEndpoints = [
+      ["league", "world-cup-2026", `leagues?id=${WORLD_CUP_LEAGUE_ID}&season=${WORLD_CUP_SEASON}`],
+      ["standings", "world-cup-2026", `standings?league=${WORLD_CUP_LEAGUE_ID}&season=${WORLD_CUP_SEASON}`],
+      ["injuries", "world-cup-2026", `injuries?league=${WORLD_CUP_LEAGUE_ID}&season=${WORLD_CUP_SEASON}`],
+      ["top-scorers", "world-cup-2026", `players/topscorers?league=${WORLD_CUP_LEAGUE_ID}&season=${WORLD_CUP_SEASON}`],
+      ["top-assists", "world-cup-2026", `players/topassists?league=${WORLD_CUP_LEAGUE_ID}&season=${WORLD_CUP_SEASON}`],
+      ["top-yellow-cards", "world-cup-2026", `players/topyellowcards?league=${WORLD_CUP_LEAGUE_ID}&season=${WORLD_CUP_SEASON}`],
+      ["top-red-cards", "world-cup-2026", `players/topredcards?league=${WORLD_CUP_LEAGUE_ID}&season=${WORLD_CUP_SEASON}`]
+    ] as const;
+
+    for (const [dataset, scopeId, endpoint] of competitionEndpoints) {
+      const row = await this.getRawDataset(dataset, scopeId, endpoint);
+      if (row) datasets.push(row);
+    }
+
+    const matches = await this.getWorldCupMatches();
+    for (const match of matches) {
+      const fixturePlayers = await this.getRawDataset("fixture-players", match.providerId, `fixtures/players?fixture=${match.providerId}`);
+      if (fixturePlayers) datasets.push(fixturePlayers);
+
+      const prediction = await this.getRawDataset("prediction", match.providerId, `predictions?fixture=${match.providerId}`);
+      if (prediction) datasets.push(prediction);
+    }
+
+    return datasets;
+  }
+
+  private async getRawDataset(dataset: string, scopeId: string, endpoint: string): Promise<ProviderDataset | null> {
+    try {
+      const data = await cachedJsonFetch<unknown>({
+        provider: this.name,
+        cacheKey: `dataset:${dataset}:${scopeId}`,
+        url: `${env.API_FOOTBALL_BASE_URL}/${endpoint}`,
+        headers: { "x-apisports-key": env.API_FOOTBALL_KEY },
+        quotaLimit: env.API_FOOTBALL_DAILY_LIMIT
+      });
+      assertNoApiFootballErrors(data);
+      const response = data && typeof data === "object" && "response" in data
+        ? (data as { response?: unknown }).response
+        : undefined;
+      return {
+        dataset,
+        scopeId,
+        recordCount: Array.isArray(response) ? response.length : response ? 1 : 0,
+        payload: data,
+        fetchedAt: new Date()
+      };
+    } catch (error) {
+      await logApp("warn", "api-football", `Optional dataset ${dataset} could not be loaded`, {
+        scopeId,
+        message: error instanceof Error ? error.message : "Unknown API-Football dataset error"
+      });
+      return null;
+    }
   }
 
   private async getFixtureDetailCollection<TSchema extends { safeParse: (data: unknown) => { success: true; data: any } | { success: false; error: { issues: unknown[] } } }, TResult>(

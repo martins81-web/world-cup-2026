@@ -35,7 +35,7 @@ export default async function AdminSyncPage() {
               <div key={run.id} className="rounded-md border bg-white p-3 text-sm">
                 <div className="font-medium">{run.provider} - {run.status}</div>
                 <div className="text-black/60">
-                  {run.startedAt.toISOString()} - source {run.source ?? "provider"} - teams {run.teamsSeen} - groups {run.groupsSeen} - matches {run.matchesSeen} - stadiums {run.stadiumsSeen}
+                  {run.startedAt.toISOString()} - source {run.source ?? "provider"} - teams {run.teamsSeen} - groups {run.groupsSeen} - matches {run.matchesSeen} - stadiums {run.stadiumsSeen} - datasets {run.datasetsSeen}
                 </div>
                 <div className="text-black/60">Last successful sync: {lastSuccessByProvider.get(run.provider) ?? "Not available"}</div>
                 {run.message ? <div className="text-red-700">{run.message}</div> : null}

@@ -48,13 +48,34 @@ describe("API-Sports widget embeds", () => {
     expect(teamWidget).toContain("unavailable for this local team");
   });
 
-  it("homepage exposes live widget headings while keeping local widgets", () => {
+  it("homepage uses the competition dashboard while keeping local widgets", () => {
     const homePage = source("src/app/page.tsx");
 
-    expect(homePage).toContain("Live widgets powered by API-Sports");
+    expect(homePage).toContain("ApiSportsCompetitionDashboard");
     expect(homePage).toContain("FeaturedMatchWidget");
     expect(homePage).toContain("NextMatchesWidget");
     expect(homePage).toContain("RecentResultsWidget");
+  });
+
+  it("live center exposes every widget supported by the official loader", () => {
+    const livePage = source("src/app/live/page.tsx");
+    const dashboard = source("src/components/widgets/api-sports-competition-dashboard.tsx");
+
+    for (const widget of [
+      "ApiSportsGamesWidget",
+      "ApiSportsStandingsWidget"
+    ]) {
+      expect(dashboard).toContain(widget);
+    }
+
+    expect(livePage).toContain("ApiSportsGameWidget");
+    expect(livePage).not.toContain("ApiSportsTeamWidget");
+    expect(livePage).not.toContain("ApiSportsPlayerWidget");
+  });
+
+  it("replays widget initialization after Next.js renders", () => {
+    const widget = source("src/components/widgets/api-sports-widget.tsx");
+    expect(widget).toContain('window.dispatchEvent(new Event("DOMContentLoaded"))');
   });
 });
 

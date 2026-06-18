@@ -50,6 +50,10 @@ export const apiFootballSquadResponseSchema = z.object({
 });
 
 export const apiFootballPlayersResponseSchema = z.object({
+  paging: z.object({
+    current: z.number(),
+    total: z.number()
+  }).optional(),
   response: z.array(z.object({
     player: z.object({
       id: z.number(),

@@ -15,6 +15,7 @@ export type SyncResult = {
   matchesSeen: number;
   groupsSeen: number;
   stadiumsSeen: number;
+  datasetsSeen?: number;
   source?: string;
   errors?: string[];
 };
@@ -580,22 +581,63 @@ export async function synchronizeProvider(provider: FootballProvider): Promise<S
     }
 
     if (provider.getWorldCupLineups) {
-      await prisma.matchLineup.deleteMany({ where: { match: { sourceProvider: provider.name } } });
+      await prisma.matchLineup.deleteMany({
+        where: {
+          match: provider.name === ProviderName.API_FOOTBALL
+            ? { apiFootballFixtureId: { not: null } }
+            : { sourceProvider: provider.name }
+        }
+      });
       for (const lineup of await provider.getWorldCupLineups()) await ingestLineup(provider.name, lineup);
     }
 
     if (provider.getWorldCupEvents) {
-      await prisma.matchEvent.deleteMany({ where: { match: { sourceProvider: provider.name } } });
+      await prisma.matchEvent.deleteMany({
+        where: {
+          match: provider.name === ProviderName.API_FOOTBALL
+            ? { apiFootballFixtureId: { not: null } }
+            : { sourceProvider: provider.name }
+        }
+      });
       for (const event of await provider.getWorldCupEvents()) await ingestEvent(provider.name, event);
     }
 
     if (provider.getWorldCupMatchStatistics) {
-      await prisma.matchStatistic.deleteMany({ where: { match: { sourceProvider: provider.name } } });
+      await prisma.matchStatistic.deleteMany({
+        where: {
+          match: provider.name === ProviderName.API_FOOTBALL
+            ? { apiFootballFixtureId: { not: null } }
+            : { sourceProvider: provider.name }
+        }
+      });
       for (const statistic of await provider.getWorldCupMatchStatistics()) await ingestMatchStatistic(provider.name, statistic);
     }
 
     if (provider.getWorldCupTeamStatistics) {
       for (const statistic of await provider.getWorldCupTeamStatistics()) await ingestTeamStatistic(provider.name, tournament.id, statistic);
+    }
+
+    let datasetsSeen = 0;
+    if (provider.getWorldCupDatasets) {
+      const datasets = await provider.getWorldCupDatasets();
+      datasetsSeen = datasets.length;
+      for (const dataset of datasets) {
+        await prisma.apiFootballDataset.upsert({
+          where: { dataset_scopeId: { dataset: dataset.dataset, scopeId: dataset.scopeId } },
+          update: {
+            recordCount: dataset.recordCount,
+            payload: dataset.payload as Prisma.InputJsonValue,
+            fetchedAt: dataset.fetchedAt ?? new Date()
+          },
+          create: {
+            dataset: dataset.dataset,
+            scopeId: dataset.scopeId,
+            recordCount: dataset.recordCount,
+            payload: dataset.payload as Prisma.InputJsonValue,
+            fetchedAt: dataset.fetchedAt ?? new Date()
+          }
+        });
+      }
     }
 
     const status = provider.errors && provider.errors.length > 0 ? "partial" : "success";
@@ -609,13 +651,14 @@ export async function synchronizeProvider(provider: FootballProvider): Promise<S
         matchesSeen: matches.length,
         groupsSeen: groups.length,
         stadiumsSeen: stadiums.length,
+        datasetsSeen,
         source: provider.source,
         message,
         errors: provider.errors as Prisma.InputJsonValue
       }
     });
 
-    return { provider: provider.name, status, message, teamsSeen: teams.length, matchesSeen: matches.length, groupsSeen: groups.length, stadiumsSeen: stadiums.length, source: provider.source, errors: provider.errors };
+    return { provider: provider.name, status, message, teamsSeen: teams.length, matchesSeen: matches.length, groupsSeen: groups.length, stadiumsSeen: stadiums.length, datasetsSeen, source: provider.source, errors: provider.errors };
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown synchronization error";
     await prisma.syncRun.update({ where: { id: run.id }, data: { status: "failed", finishedAt: new Date(), message } });

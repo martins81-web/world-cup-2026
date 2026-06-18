@@ -1,7 +1,6 @@
 import { notFound } from "next/navigation";
 import { DevelopmentNotice } from "@/components/development-notice";
 import { PlayerCard } from "@/components/player-card";
-import { ApiSportsPlayersWidget } from "@/components/widgets/api-sports-players-widget";
 import { getTeamSquad } from "@/lib/data/world-cup";
 
 export const dynamic = "force-dynamic";
@@ -21,12 +20,6 @@ export default async function TeamSquadPage({ params }: { params: Promise<{ id: 
       <DevelopmentNotice active={tournament?.isSeedData} />
       <section className="mx-auto max-w-6xl px-6 py-8">
         <h1 className="text-3xl font-semibold">{team.name} Squad</h1>
-        <div className="mt-5">
-          <h2 className="text-2xl font-semibold">Live widgets powered by API-Sports</h2>
-          <div className="mt-4">
-            <ApiSportsPlayersWidget team={team.apiFootballId} title="API-Sports Players widget" />
-          </div>
-        </div>
         <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           {squad.map((member) => <PlayerCard key={member.id} member={member} />)}
         </div>

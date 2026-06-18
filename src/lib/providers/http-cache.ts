@@ -17,37 +17,53 @@ export async function cachedJsonFetch<T>(options: CachedFetchOptions): Promise<T
     where: { provider_cacheKey: { provider: options.provider, cacheKey: options.cacheKey } }
   });
 
-  if (cached && cached.expiresAt > new Date()) {
+  if (cached && cached.statusCode >= 200 && cached.statusCode < 300 && cached.expiresAt > new Date()) {
     return cached.response as T;
   }
 
-  await incrementQuotaOrThrow(options.provider, options.quotaLimit);
+  const maxAttempts = 4;
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    await incrementQuotaOrThrow(options.provider, options.quotaLimit);
 
-  const response = await fetch(options.url, {
-    headers: options.headers,
-    next: { revalidate: env.EXTERNAL_API_CACHE_TTL_SECONDS }
-  });
-  const body = (await response.json()) as T;
+    const response = await fetch(options.url, {
+      headers: options.headers,
+      next: { revalidate: env.EXTERNAL_API_CACHE_TTL_SECONDS }
+    });
+    const body = (await response.json()) as T;
 
-  await prisma.externalApiCache.upsert({
-    where: { provider_cacheKey: { provider: options.provider, cacheKey: options.cacheKey } },
-    update: {
-      statusCode: response.status,
-      response: body as Prisma.InputJsonValue,
-      expiresAt: new Date(Date.now() + env.EXTERNAL_API_CACHE_TTL_SECONDS * 1000)
-    },
-    create: {
-      provider: options.provider,
-      cacheKey: options.cacheKey,
-      statusCode: response.status,
-      response: body as Prisma.InputJsonValue,
-      expiresAt: new Date(Date.now() + env.EXTERNAL_API_CACHE_TTL_SECONDS * 1000)
+    if (response.ok) {
+      await prisma.externalApiCache.upsert({
+        where: { provider_cacheKey: { provider: options.provider, cacheKey: options.cacheKey } },
+        update: {
+          statusCode: response.status,
+          response: body as Prisma.InputJsonValue,
+          expiresAt: new Date(Date.now() + env.EXTERNAL_API_CACHE_TTL_SECONDS * 1000)
+        },
+        create: {
+          provider: options.provider,
+          cacheKey: options.cacheKey,
+          statusCode: response.status,
+          response: body as Prisma.InputJsonValue,
+          expiresAt: new Date(Date.now() + env.EXTERNAL_API_CACHE_TTL_SECONDS * 1000)
+        }
+      });
+      return body;
     }
-  });
 
-  if (!response.ok) {
-    throw new Error(`${options.provider} request failed with HTTP ${response.status}`);
+    if (response.status !== 429 || attempt === maxAttempts) {
+      throw new Error(`${options.provider} request failed with HTTP ${response.status}`);
+    }
+
+    const retryAfterSeconds = Number(response.headers.get("retry-after"));
+    const delayMs = Number.isFinite(retryAfterSeconds) && retryAfterSeconds > 0
+      ? retryAfterSeconds * 1000
+      : attempt * 1500;
+    await delay(delayMs);
   }
 
-  return body;
+  throw new Error(`${options.provider} request failed after ${maxAttempts} attempts`);
+}
+
+function delay(milliseconds: number) {
+  return new Promise((resolve) => setTimeout(resolve, milliseconds));
 }

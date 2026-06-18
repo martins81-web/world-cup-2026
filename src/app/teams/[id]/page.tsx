@@ -2,7 +2,6 @@ import Link from "next/link";
 import Image from "next/image";
 import { notFound } from "next/navigation";
 import { DevelopmentNotice } from "@/components/development-notice";
-import { ApiSportsTeamWidget } from "@/components/widgets/api-sports-team-widget";
 import { TeamShowcaseWidget } from "@/components/widgets/team-showcase-widget";
 import { getTeamById } from "@/lib/data/world-cup";
 import { getTheSportsDbEnrichment } from "@/lib/providers/thesportsdb";
@@ -28,12 +27,6 @@ export default async function TeamPage({ params }: { params: Promise<{ id: strin
       <DevelopmentNotice active={tournament?.isSeedData} />
       <section className="mx-auto max-w-4xl px-6 py-8">
         <h1 className="text-3xl font-semibold">{team.name}</h1>
-        <div className="mt-5">
-          <h2 className="text-2xl font-semibold">Live widgets powered by API-Sports</h2>
-          <div className="mt-4">
-            <ApiSportsTeamWidget team={team.apiFootballId} />
-          </div>
-        </div>
         <div className="mt-6">
           <TeamShowcaseWidget teams={[team]} sportsDbTeams={sportsDb.teams} title="TheSportsDB artwork" />
         </div>
